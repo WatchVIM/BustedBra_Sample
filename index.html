@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Luna Intimates – Modern Bras & Intimates</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Poppins:wght@300;400;500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    :root {
+      --bg: #070707;
+      --bg-soft: #141414;
+      --bg-card: #181818;
+      --accent: #ff4e88;
+      --accent-soft: rgba(255, 78, 136, 0.08);
+      --text: #f7f7f7;
+      --muted: #a9a9a9;
+      --border-subtle: #2a2a2a;
+      --pill-bg: #202020;
+      --success: #52e0a5;
+      --danger: #ff7272;
+      --radius-lg: 1.75rem;
+      --radius-md: 1rem;
+      --radius-pill: 999px;
+      --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.6);
+      --transition-fast: 0.2s ease-out;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #1d1220 0, #070707 40%);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* =======================
+       HEADER / NAV
+       ======================= */
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(18px);
+      background: linear-gradient(
+        to bottom,
+        rgba(7, 7, 7, 0.92),
+        rgba(7, 7, 7, 0.85),
+        transparent
+      );
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 0;
+      gap: 1rem;
+    }
+
+    .nav-left,
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+
+    .brand-title {
+      font-family: "Playfair Display", serif;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 0.9rem;
+    }
+
+    .brand-subtitle {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      margin-left: 2.5rem;
+    }
+
+    .nav-link {
+      font-size: 0.82rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-bottom: 0.15rem;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .nav-link::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -0.35rem;
+      width: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #ff4e88, #ffb8d1);
+      border-radius: 999px;
+      transition: width var(--transition-fast);
+    }
+
+    .nav-link:hover {
+      color: #fff;
+    }
+
+    .nav-link:hover::after {
+      width: 100%;
+    }
+
+    .nav-right {
+      gap: 0.75rem;
+    }
+
+    .nav-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.9rem;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .nav-pill span.dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 4px rgba(82, 224, 165, 0.2);
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.02);
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background var(--transition-fast),
+        transform var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-1px);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .cart-btn {
+      position: relative;
+    }
+
+    .cart-count {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      min-width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.63rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+
+    .mobile-menu-btn {
+      display: none;
+      font-size: 1.3rem;
+    }
+
+    /* =======================
+       HERO
+       ======================= */
+
+    .hero {
+      padding: 2.5rem 0 1rem;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: 2.3rem;
+      align-items: center;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.2rem 0.8rem;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .hero-eyebrow span.badge {
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(255, 78, 136, 0.12);
+      color: var(--accent);
+    }
+
+    .hero-heading {
+      font-family: "Playfair Display", serif;
+      font-size: clamp(2.4rem, 3.2vw + 1rem, 3.7rem);
+      line-height: 1.05;
+      margin: 1.15rem 0 0.75rem;
+      max-width: 480px;
+    }
+
+    .hero-heading span.accent {
+      background: linear-gradient(120deg, #ff4e88, #ffb8d1);
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+
+    .hero-body {
+      max-width: 460px;
+      font-size: 0.98rem;
+      color: var(--muted);
+      margin-bottom: 1.4rem;
+    }
+
+    .hero-body strong {
+      color: #fff;
+      font-weight: 500;
+    }
+
+    .hero-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      margin-bottom: 1.6rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .hero-meta-label {
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 0.68rem;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 0.3rem;
+    }
+
+    .hero-meta-value {
+      font-weight: 500;
+    }
+
+    .hero-cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .btn-primary {
+      padding: 0.8rem 1.7rem;
+      border-radius: var(--radius-pill);
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(120deg, #ff4e88, #ffb8d1);
+      color: #070707;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 16px 36px rgba(255, 78, 136, 0.34);
+      transition: transform var(--transition-fast),
+        box-shadow var(--transition-fast), filter var(--transition-fast);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 18px 40px rgba(255, 78, 136, 0.42);
+      filter: brightness(1.02);
+    }
+
+    .btn-ghost {
+      padding: 0.7rem 1.4rem;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text);
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background var(--transition-fast), border-color var(--transition-fast),
+        transform var(--transition-fast);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .hero-secondary-text {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .hero-visual {
+      border-radius: var(--radius-lg);
+      background: radial-gradient(circle at top, #ffb8d1 0, #ff4e88 18%, #181018 45%, #070707 90%);
+      position: relative;
+      overflow: hidden;
+      padding: 1.4rem;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .hero-tag {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: var(--radius-pill);
+      background: rgba(7, 7, 7, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .hero-price-tag {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      padding: 0.55rem 1rem;
+      border-radius: 999px;
+      background: rgba(7, 7, 7, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      display: inline-flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      font-size: 0.78rem;
+    }
+
+    .hero-price-tag span.price {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .hero-model-shape {
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      border-radius: calc(var(--radius-lg) * 0.8);
+      background: linear-gradient(135deg, rgba(7, 7, 7, 0.94), rgba(7, 7, 7, 0.82));
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 1.8rem;
+    }
+
+    .hero-model-inner {
+      width: 76%;
+      height: 78%;
+      border-radius: 2rem;
+      background: linear-gradient(
+          to top,
+          rgba(7, 7, 7, 0.8),
+          rgba(7, 7, 7, 0.35)
+        ),
+        radial-gradient(circle at 20% 0, rgba(255, 184, 209, 0.55), transparent 55%),
+        radial-gradient(circle at 80% 0, rgba(255, 78, 136, 0.65), transparent 60%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 1.2rem;
+    }
+
+    /* =======================
+       SHOP BY EDIT
+       ======================= */
+
+    .section {
+      padding: 2.4rem 0 1rem;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 1.3rem;
+      gap: 1rem;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .section-subtitle {
+      max-width: 360px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .edit-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .edit-card {
+      position: relative;
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      background: radial-gradient(circle at top, #2a1823, #181818);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast),
+        border-color var(--transition-fast), background var(--transition-fast);
+    }
+
+    .edit-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.75);
+      border-color: rgba(255, 255, 255, 0.16);
+      background: radial-gradient(circle at top, #3a1b2c, #181818);
+    }
+
+    .edit-tag {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .edit-name {
+      margin-top: 0.6rem;
+      font-weight: 500;
+      font-size: 0.97rem;
+    }
+
+    .edit-meta {
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .edit-pill {
+      position: absolute;
+      bottom: 0.8rem;
+      left: 1rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: var(--radius-pill);
+      background: rgba(7, 7, 7, 0.75);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* =======================
+       PRODUCT GRID
+       ======================= */
+
+    .filters-bar {
+      border-radius: var(--radius-pill);
+      background: rgba(14, 14, 14, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.45rem 0.8rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.8rem;
+      font-size: 0.78rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .filter-label {
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.66rem;
+    }
+
+    .filter-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .filter-select {
+      background: rgba(7, 7, 7, 0.9);
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: var(--text);
+      padding: 0.25rem 0.9rem;
+      font-size: 0.78rem;
+      appearance: none;
+      cursor: pointer;
+      min-width: 120px;
+      background-image: linear-gradient(45deg, transparent 50%, #fff 50%),
+        linear-gradient(135deg, #fff 50%, transparent 50%);
+      background-position: calc(100% - 12px) 50%, calc(100% - 7px) 50%;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+    }
+
+    .filter-select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(255, 78, 136, 0.8);
+    }
+
+    .filter-chip {
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      font-size: 0.72rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      cursor: pointer;
+    }
+
+    .filter-chip span.dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .product-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform var(--transition-fast),
+        box-shadow var(--transition-fast), border-color var(--transition-fast),
+        background var(--transition-fast);
+      position: relative;
+    }
+
+    .product-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.85);
+      border-color: rgba(255, 255, 255, 0.18);
+      background: radial-gradient(circle at top, #231218, #181818);
+    }
+
+    .product-tag {
+      position: absolute;
+      top: 0.6rem;
+      left: 0.6rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(7, 7, 7, 0.9);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+    }
+
+    .product-tag--hot {
+      color: var(--accent);
+    }
+
+    .product-tag--soft {
+      color: var(--muted);
+    }
+
+    .product-media {
+      padding: 0.8rem 0.8rem 0.5rem;
+    }
+
+    .product-image-placeholder {
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      border-radius: 1.3rem;
+      background: radial-gradient(circle at top, #ffb8d1 0, #ff4e88 26%, #181818 78%);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 1.2rem;
+    }
+
+    .product-image-inner {
+      width: 80%;
+      height: 74%;
+      border-radius: 1.5rem;
+      background: linear-gradient(
+          to top,
+          rgba(7, 7, 7, 0.9),
+          rgba(7, 7, 7, 0.35)
+        ),
+        radial-gradient(circle at 20% 0, rgba(255, 184, 209, 0.6), transparent 55%),
+        radial-gradient(circle at 80% 0, rgba(255, 78, 136, 0.7), transparent 60%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .product-body {
+      padding: 0.5rem 0.9rem 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      font-size: 0.86rem;
+    }
+
+    .product-name {
+      font-weight: 500;
+    }
+
+    .product-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .product-price {
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .product-size {
+      font-size: 0.75rem;
+    }
+
+    .product-color-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 0.3rem;
+    }
+
+    .product-color--rose {
+      background: #ff9bbf;
+    }
+
+    .product-color--onyx {
+      background: #111;
+    }
+
+    .product-color--almond {
+      background: #d7a482;
+    }
+
+    .product-color--cloud {
+      background: #f1f1f1;
+    }
+
+    .product-actions-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0.4rem;
+      gap: 0.4rem;
+    }
+
+    .btn-add {
+      flex: 1;
+      padding: 0.45rem 0.8rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: rgba(255, 78, 136, 0.1);
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      transition: background var(--transition-fast), color var(--transition-fast),
+        transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .btn-add:hover {
+      background: linear-gradient(120deg, #ff4e88, #ffb8d1);
+      color: #070707;
+      box-shadow: 0 8px 18px rgba(255, 78, 136, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .wishlist-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.03);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    .wishlist-btn--active {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    /* =======================
+       NEWSLETTER & FOOTER
+       ======================= */
+
+    .newsletter {
+      padding: 2.4rem 0 0.7rem;
+    }
+
+    .newsletter-inner {
+      border-radius: var(--radius-lg);
+      background: radial-gradient(circle at top, #261521, #141414);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 1.8rem 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.8rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .newsletter-copy {
+      max-width: 420px;
+    }
+
+    .newsletter-title {
+      font-size: 1.1rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 0.4rem;
+    }
+
+    .newsletter-text {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .newsletter-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
+    }
+
+    .newsletter-input-wrap {
+      position: relative;
+      flex: 1 0 230px;
+    }
+
+    .newsletter-input {
+      width: 100%;
+      border-radius: var(--radius-pill);
+      background: rgba(7, 7, 7, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 0.65rem 3.2rem 0.65rem 1rem;
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+
+    .newsletter-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .newsletter-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(255, 78, 136, 0.8);
+    }
+
+    .newsletter-input-icon {
+      position: absolute;
+      right: 0.9rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .newsletter-note {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    footer {
+      padding: 1.8rem 0 2.2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      margin-top: 1.4rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .footer-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.9rem;
+    }
+
+    .footer-links a {
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 0.7rem;
+    }
+
+    /* =======================
+       RESPONSIVE
+       ======================= */
+
+    @media (max-width: 992px) {
+      .nav-links {
+        display: none;
+      }
+
+      .mobile-menu-btn {
+        display: inline-flex;
+      }
+
+      .hero-grid {
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      }
+
+      .edit-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .product-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      .hero {
+        padding-top: 1.6rem;
+      }
+
+      .hero-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .hero-visual {
+        order: -1;
+      }
+
+      .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .newsletter-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .container {
+        padding: 0 1.1rem;
+      }
+
+      .nav {
+        padding: 0.75rem 0;
+      }
+
+      .edit-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .product-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .filters-bar {
+        border-radius: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <!-- =======================
+         HEADER
+         ======================= -->
+    <header>
+      <div class="container">
+        <nav class="nav">
+          <div class="nav-left">
+            <div class="brand">
+              <span class="brand-title">Luna Intimates</span>
+              <span class="brand-subtitle">Bras · Bodies · Beyond</span>
+            </div>
+            <div class="nav-links">
+              <button class="nav-link">Shop</button>
+              <button class="nav-link">New In</button>
+              <button class="nav-link">Best Sellers</button>
+              <button class="nav-link">Fit Guide</button>
+              <button class="nav-link">Stories</button>
+            </div>
+          </div>
+
+          <div class="nav-right">
+            <button class="nav-pill">
+              <span class="dot"></span>
+              Virtual fit · Live
+            </button>
+
+            <button class="icon-btn" aria-label="Search">
+              🔍
+            </button>
+
+            <button class="icon-btn" aria-label="Account">
+              👤
+            </button>
+
+            <button class="icon-btn cart-btn" aria-label="Shopping bag">
+              🛍
+              <span class="cart-count" id="cartCount">0</span>
+            </button>
+
+            <button class="icon-btn mobile-menu-btn" aria-label="Open menu">
+              ☰
+            </button>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <!-- =======================
+         HERO
+         ======================= -->
+    <main>
+      <section class="hero">
+        <div class="container">
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <div class="hero-eyebrow">
+                SS25 Drop
+                <span class="badge">New silhouettes</span>
+              </div>
+              <h1 class="hero-heading">
+                Bras that
+                <span class="accent">fit your mood,</span>
+                not just your size.
+              </h1>
+              <p class="hero-body">
+                Meet the <strong>SkinKind™ bra capsule</strong>: cloud-soft support,
+                inclusive sizing (28A–42H), and finishes designed to disappear under
+                everything from white tees to slip dresses.
+              </p>
+
+              <div class="hero-meta-row">
+                <div>
+                  <div class="hero-meta-label">Free shipping</div>
+                  <div class="hero-meta-value">On orders $80+</div>
+                </div>
+                <div>
+                  <div class="hero-meta-label">Try-on window</div>
+                  <div class="hero-meta-value">30-day fit guarantee</div>
+                </div>
+                <div>
+                  <div class="hero-meta-label">Fit range</div>
+                  <div class="hero-meta-value">28A – 42H</div>
+                </div>
+              </div>
+
+              <div class="hero-cta-row">
+                <button class="btn-primary">
+                  Shop the capsule
+                  <span>→</span>
+                </button>
+                <button class="btn-ghost">
+                  Explore fit guide
+                  <span>♡</span>
+                </button>
+              </div>
+              <p class="hero-secondary-text">
+                Ethically made, model-tested in real life, and rated 4.9★ by over
+                12,000 women.
+              </p>
+            </div>
+
+            <div class="hero-visual" aria-hidden="true">
+              <div class="hero-tag">SkinKind™ Sculpt Balconette</div>
+              <div class="hero-model-shape">
+                <div class="hero-model-inner">
+                  Editorial-ready hero image of a woman in a blush balconette bra,
+                  layered with soft shadows and a subtle neon halo.
+                </div>
+              </div>
+              <div class="hero-price-tag">
+                <span class="price">$68</span>
+                <span>3 for $159 · Mix & match</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =======================
+           SHOP BY EDIT
+           ======================= -->
+      <section class="section" id="shop-by-edit">
+        <div class="container">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Shop the edits</h2>
+            </div>
+            <p class="section-subtitle">
+              Curated drops for every version of you: from red-eye flights to first
+              dates and everything in between.
+            </p>
+          </div>
+
+          <div class="edit-grid">
+            <article class="edit-card">
+              <div class="edit-tag">01 · Everyday</div>
+              <h3 class="edit-name">Off-Duty Comfort</h3>
+              <p class="edit-meta">
+                Soft, wireless, and T-shirt smooth for coffee runs & Zoom calls.
+              </p>
+              <div class="edit-pill">Shop everyday →</div>
+            </article>
+
+            <article class="edit-card">
+              <div class="edit-tag">02 · Lace</div>
+              <h3 class="edit-name">After-Dark Lace</h3>
+              <p class="edit-meta">
+                Delicate florals, bold cuts, zero scratch. Romance, but modern.
+              </p>
+              <div class="edit-pill">Shop lace →</div>
+            </article>
+
+            <article class="edit-card">
+              <div class="edit-tag">03 · Sport</div>
+              <h3 class="edit-name">Studio to Street</h3>
+              <p class="edit-meta">
+                Sports bras that actually look good with trousers & trench coats.
+              </p>
+              <div class="edit-pill">Shop sport →</div>
+            </article>
+
+            <article class="edit-card">
+              <div class="edit-tag">04 · Full bust</div>
+              <h3 class="edit-name">Lift, Not Pinch</h3>
+              <p class="edit-meta">
+                Engineered support for D+ cups, minus the bulk and digging straps.
+              </p>
+              <div class="edit-pill">Shop full-bust →</div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- =======================
+           PRODUCT GRID
+           ======================= -->
+      <section class="section" id="bras">
+        <div class="container">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Bras · New in</h2>
+            </div>
+            <p class="section-subtitle">
+              Filter by style and color to find your next favorite bra. All styles
+              available in A–H cups unless noted.
+            </p>
+          </div>
+
+          <div class="filters-bar">
+            <span class="filter-label">Filter</span>
+
+            <div class="filter-group">
+              <span>Style</span>
+              <select id="styleFilter" class="filter-select">
+                <option value="all">All</option>
+                <option value="tshirt">T-shirt</option>
+                <option value="balconette">Balconette</option>
+                <option value="lace">Lace</option>
+                <option value="wireless">Wireless</option>
+                <option value="sport">Sport</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <span>Color</span>
+              <select id="colorFilter" class="filter-select">
+                <option value="all">All</option>
+                <option value="rose">Rose</option>
+                <option value="onyx">Onyx</option>
+                <option value="almond">Almond</option>
+                <option value="cloud">Cloud</option>
+              </select>
+            </div>
+
+            <button class="filter-chip" id="clearFiltersBtn">
+              <span class="dot"></span>
+              Clear filters
+            </button>
+          </div>
+
+          <div class="product-grid" id="productGrid">
+            <!-- Product 1 -->
+            <article
+              class="product-card"
+              data-style="tshirt"
+              data-color="rose"
+            >
+              <div class="product-tag product-tag--hot">Best seller</div>
+              <div class="product-media">
+                <div class="product-image-placeholder">
+                  <div class="product-image-inner"></div>
+                </div>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">CloudSoft™ T-Shirt Bra</h3>
+                <div class="product-meta-row">
+                  <span class="product-price">$62</span>
+                  <span class="product-size">28A–38G</span>
+                </div>
+                <div class="product-meta-row">
+                  <span>
+                    <span class="product-color-dot product-color--rose"></span>
+                    Rose Quartz
+                  </span>
+                  <span>4.9★ · 1,842 reviews</span>
+                </div>
+                <div class="product-actions-row">
+                  <button class="btn-add" data-name="CloudSoft T-Shirt Bra">
+                    + Add to bag
+                  </button>
+                  <button
+                    class="wishlist-btn"
+                    aria-label="Add to wishlist"
+                  >
+                    ♡
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Product 2 -->
+            <article
+              class="product-card"
+              data-style="balconette"
+              data-color="onyx"
+            >
+              <div class="product-tag product-tag--soft">New</div>
+              <div class="product-media">
+                <div class="product-image-placeholder">
+                  <div class="product-image-inner"></div>
+                </div>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">SculptLift™ Balconette</h3>
+                <div class="product-meta-row">
+                  <span class="product-price">$68</span>
+                  <span class="product-size">30B–42H</span>
+                </div>
+                <div class="product-meta-row">
+                  <span>
+                    <span class="product-color-dot product-color--onyx"></span>
+                    Onyx
+                  </span>
+                  <span>4.8★ · Invisible under tees</span>
+                </div>
+                <div class="product-actions-row">
+                  <button class="btn-add" data-name="SculptLift Balconette">
+                    + Add to bag
+                  </button>
+                  <button
+                    class="wishlist-btn"
+                    aria-label="Add to wishlist"
+                  >
+                    ♡
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Product 3 -->
+            <article
+              class="product-card"
+              data-style="lace"
+              data-color="almond"
+            >
+              <div class="product-tag product-tag--soft">Limited</div>
+              <div class="product-media">
+                <div class="product-image-placeholder">
+                  <div class="product-image-inner"></div>
+                </div>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">Midnight Muse Lace Plunge</h3>
+                <div class="product-meta-row">
+                  <span class="product-price">$72</span>
+                  <span class="product-size">30C–38H</span>
+                </div>
+                <div class="product-meta-row">
+                  <span>
+                    <span class="product-color-dot product-color--almond"></span>
+                    Toasted Almond
+                  </span>
+                  <span>Sheer but secure</span>
+                </div>
+                <div class="product-actions-row">
+                  <button class="btn-add" data-name="Midnight Muse Lace Plunge">
+                    + Add to bag
+                  </button>
+                  <button
+                    class="wishlist-btn"
+                    aria-label="Add to wishlist"
+                  >
+                    ♡
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Product 4 -->
+            <article
+              class="product-card"
+              data-style="wireless"
+              data-color="cloud"
+            >
+              <div class="product-tag product-tag--hot">Wire-free</div>
+              <div class="product-media">
+                <div class="product-image-placeholder">
+                  <div class="product-image-inner"></div>
+                </div>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">BareHug™ Wireless Bralette</h3>
+                <div class="product-meta-row">
+                  <span class="product-price">$54</span>
+                  <span class="product-size">XS–XXL</span>
+                </div>
+                <div class="product-meta-row">
+                  <span>
+                    <span class="product-color-dot product-color--cloud"></span>
+                    Cloud
+                  </span>
+                  <span>Double-layered for coverage</span>
+                </div>
+                <div class="product-actions-row">
+                  <button class="btn-add" data-name="BareHug Wireless Bralette">
+                    + Add to bag
+                  </button>
+                  <button
+                    class="wishlist-btn"
+                    aria-label="Add to wishlist"
+                  >
+                    ♡
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Product 5 -->
+            <article
+              class="product-card"
+              data-style="sport"
+              data-color="rose"
+            >
+              <div class="product-tag product-tag--soft">Impact</div>
+              <div class="product-media">
+                <div class="product-image-placeholder">
+                  <div class="product-image-inner"></div>
+                </div>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">TempoFlex™ High-Impact Bra</h3>
+                <div class="product-meta-row">
+                  <span class="product-price">$70</span>
+                  <span class="product-size">30C–40F</span>
+                </div>
+                <div class="product-meta-row">
+                  <span>
+                    <span class="product-color-dot product-color--rose"></span>
+                    Rose Noir
+                  </span>
+                  <span>Run-tested · No bounce</span>
+                </div>
+                <div class="product-actions-row">
+                  <button class="btn-add" data-name="TempoFlex High-Impact Bra">
+                    + Add to bag
+                  </button>
+                  <button
+                    class="wishlist-btn"
+                    aria-label="Add to wishlist"
+                  >
+                    ♡
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Product 6 -->
+            <article
+              class="product-card"
+              data-style="tshirt"
+              data-color="almond"
+            >
+              <div class="product-tag product-tag--soft">Nude edit</div>
+              <div class="product-media">
+                <div class="product-image-placeholder">
+                  <div class="product-image-inner"></div>
+                </div>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">SecondSkin™ Smoothing Bra</h3>
+                <div class="product-meta-row">
+                  <span class="product-price">$66</span>
+                  <span class="product-size">30A–40DD</span>
+                </div>
+                <div class="product-meta-row">
+                  <span>
+                    <span class="product-color-dot product-color--almond"></span>
+                    Mocha Nude
+                  </span>
+                  <span>Bonded edges · No lines</span>
+                </div>
+                <div class="product-actions-row">
+                  <button class="btn-add" data-name="SecondSkin Smoothing Bra">
+                    + Add to bag
+                  </button>
+                  <button
+                    class="wishlist-btn"
+                    aria-label="Add to wishlist"
+                  >
+                    ♡
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Product 7 -->
+            <article
+              class="product-card"
+              data-style="lace"
+              data-color="rose"
+            >
+              <div class="product-tag product-tag--soft">Date night</div>
+              <div class="product-media">
+                <div class="product-image-placeholder">
+                  <div class="product-image-inner"></div>
+                </div>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">VelvetHour™ Longline</h3>
+                <div class="product-meta-row">
+                  <span class="product-price">$78</span>
+                  <span class="product-size">32B–38G</span>
+                </div>
+                <div class="product-meta-row">
+                  <span>
+                    <span class="product-color-dot product-color--rose"></span>
+                    Blushed Wine
+                  </span>
+                  <span>Pairs with high-waist skirt</span>
+                </div>
+                <div class="product-actions-row">
+                  <button class="btn-add" data-name="VelvetHour Longline">
+                    + Add to bag
+                  </button>
+                  <button
+                    class="wishlist-btn"
+                    aria-label="Add to wishlist"
+                  >
+                    ♡
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Product 8 -->
+            <article
+              class="product-card"
+              data-style="wireless"
+              data-color="onyx"
+            >
+              <div class="product-tag product-tag--soft">Lounge</div>
+              <div class="product-media">
+                <div class="product-image-placeholder">
+                  <div class="product-image-inner"></div>
+                </div>
+              </div>
+              <div class="product-body">
+                <h3 class="product-name">Off-Duty Modal Bralette</h3>
+                <div class="product-meta-row">
+                  <span class="product-price">$52</span>
+                  <span class="product-size">XS–XXXL</span>
+                </div>
+                <div class="product-meta-row">
+                  <span>
+                    <span class="product-color-dot product-color--onyx"></span>
+                    Deep Onyx
+                  </span>
+                  <span>Match back joggers</span>
+                </div>
+                <div class="product-actions-row">
+                  <button class="btn-add" data-name="Off-Duty Modal Bralette">
+                    + Add to bag
+                  </button>
+                  <button
+                    class="wishlist-btn"
+                    aria-label="Add to wishlist"
+                  >
+                    ♡
+                  </button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- =======================
+           NEWSLETTER
+           ======================= -->
+      <section class="newsletter">
+        <div class="container">
+          <div class="newsletter-inner">
+            <div class="newsletter-copy">
+              <h2 class="newsletter-title">Stay in the lingerie loop</h2>
+              <p class="newsletter-text">
+                Be the first to know about new drops, limited color runs, and
+                surprise fit events. No spam, just really good bras.
+              </p>
+            </div>
+            <form
+              class="newsletter-form"
+              onsubmit="event.preventDefault(); alert('Subscribed! ✨');"
+            >
+              <div class="newsletter-input-wrap">
+                <input
+                  class="newsletter-input"
+                  type="email"
+                  placeholder="Your email for early access"
+                  required
+                />
+                <span class="newsletter-input-icon">✉️</span>
+              </div>
+              <button class="btn-primary" type="submit">
+                Join the list
+              </button>
+              <p class="newsletter-note">
+                By subscribing you agree to our Terms & Privacy.
+              </p>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- =======================
+         FOOTER
+         ======================= -->
+    <footer>
+      <div class="container">
+        <div class="footer-row">
+          <span>© <span id="year"></span> Luna Intimates. All rights reserved.</span>
+          <div class="footer-links">
+            <a href="#">Privacy</a>
+            <a href="#">Shipping</a>
+            <a href="#">Returns</a>
+            <a href="#">Contact</a>
+            <a href="#">Instagram</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- =======================
+       JS: FILTERS & CART
+       ======================= -->
+  <script>
+    (function () {
+      const styleFilter = document.getElementById("styleFilter");
+      const colorFilter = document.getElementById("colorFilter");
+      const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+      const productGrid = document.getElementById("productGrid");
+      const cartCountEl = document.getElementById("cartCount");
+
+      let cartCount = 0;
+
+      function applyFilters() {
+        const style = styleFilter.value;
+        const color = colorFilter.value;
+        const cards = productGrid.querySelectorAll(".product-card");
+
+        cards.forEach((card) => {
+          const cardStyle = card.getAttribute("data-style");
+          const cardColor = card.getAttribute("data-color");
+
+          const styleMatch = style === "all" || style === cardStyle;
+          const colorMatch = color === "all" || color === cardColor;
+
+          if (styleMatch && colorMatch) {
+            card.style.display = "";
+          } else {
+            card.style.display = "none";
+          }
+        });
+      }
+
+      function resetFilters() {
+        styleFilter.value = "all";
+        colorFilter.value = "all";
+        applyFilters();
+      }
+
+      styleFilter.addEventListener("change", applyFilters);
+      colorFilter.addEventListener("change", applyFilters);
+      clearFiltersBtn.addEventListener("click", resetFilters);
+
+      // Add to bag
+      document.querySelectorAll(".btn-add").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          cartCount += 1;
+          cartCountEl.textContent = cartCount;
+        });
+      });
+
+      // Wishlist toggle
+      document.querySelectorAll(".wishlist-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          btn.classList.toggle("wishlist-btn--active");
+          btn.textContent = btn.classList.contains("wishlist-btn--active") ? "♥" : "♡";
+        });
+      });
+
+      // Year in footer
+      document.getElementById("year").textContent = new Date().getFullYear();
+    })();
+  </script>
+</body>
+</html>

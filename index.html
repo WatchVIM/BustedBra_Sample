@@ -2,1640 +2,658 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Luna Intimates – Modern Bras & Intimates</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BustedBra – Modern Bra Boutique</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Google Fonts -->
+  <!-- Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Poppins:wght@300;400;500;600&display=swap"
-    rel="stylesheet"
-  />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
   <style>
     :root {
-      --bg: #070707;
-      --bg-soft: #141414;
-      --bg-card: #181818;
-      --accent: #ff4e88;
-      --accent-soft: rgba(255, 78, 136, 0.08);
-      --text: #f7f7f7;
-      --muted: #a9a9a9;
-      --border-subtle: #2a2a2a;
-      --pill-bg: #202020;
-      --success: #52e0a5;
-      --danger: #ff7272;
-      --radius-lg: 1.75rem;
-      --radius-md: 1rem;
-      --radius-pill: 999px;
-      --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.6);
-      --transition-fast: 0.2s ease-out;
+      --accent: #f4b9c4;        /* muted blush */
+      --accent-dark: #e598ac;
+      --bg: #ffffff;
+      --bg-soft: #f7f7f8;
+      --text-main: #222222;
+      --text-muted: #777777;
+      --border-subtle: #e5e5e7;
+      --radius-card: 16px;
+      --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.06);
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont,
-        "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top left, #1d1220 0, #070707 40%);
-      color: var(--text);
+      font-family: "Montserrat", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
       line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
     }
+    img { max-width: 100%; display: block; }
+    a { color: inherit; text-decoration: none; }
 
-    a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    img {
-      max-width: 100%;
-      display: block;
-    }
-
-    .page {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 0 1.5rem;
-    }
-
-    /* =======================
-       HEADER / NAV
-       ======================= */
-
+    /* Header / Nav */
     header {
       position: sticky;
       top: 0;
       z-index: 20;
-      backdrop-filter: blur(18px);
-      background: linear-gradient(
-        to bottom,
-        rgba(7, 7, 7, 0.92),
-        rgba(7, 7, 7, 0.85),
-        transparent
-      );
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-subtle);
     }
-
     .nav {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 14px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0.9rem 0;
-      gap: 1rem;
+      gap: 24px;
     }
-
-    .nav-left,
-    .nav-right {
+    .nav-left {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 12px;
     }
-
-    .brand {
+    .logo-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .logo-text {
       display: flex;
       flex-direction: column;
-      gap: 0.1rem;
+      gap: 2px;
     }
-
-    .brand-title {
-      font-family: "Playfair Display", serif;
-      letter-spacing: 0.16em;
+    .logo-text span:first-child {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      font-size: 0.9rem;
     }
-
-    .brand-subtitle {
+    .logo-text span:last-child {
       font-size: 0.7rem;
+      letter-spacing: 0.28em;
       text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: var(--muted);
+      color: var(--text-muted);
     }
 
     .nav-links {
       display: flex;
-      align-items: center;
-      gap: 1.25rem;
-      margin-left: 2.5rem;
-    }
-
-    .nav-link {
-      font-size: 0.82rem;
-      letter-spacing: 0.12em;
+      gap: 24px;
+      font-size: 0.9rem;
       text-transform: uppercase;
-      color: var(--muted);
-      padding-bottom: 0.15rem;
-      position: relative;
-      cursor: pointer;
+      letter-spacing: 0.16em;
     }
-
-    .nav-link::after {
+    .nav-links a {
+      position: relative;
+      padding-bottom: 4px;
+    }
+    .nav-links a::after {
       content: "";
       position: absolute;
       left: 0;
-      bottom: -0.35rem;
+      bottom: 0;
       width: 0;
-      height: 2px;
-      background: linear-gradient(90deg, #ff4e88, #ffb8d1);
-      border-radius: 999px;
-      transition: width var(--transition-fast);
+      height: 1px;
+      background: var(--accent);
+      transition: width 0.18s ease;
     }
-
-    .nav-link:hover {
-      color: #fff;
-    }
-
-    .nav-link:hover::after {
+    .nav-links a:hover::after {
       width: 100%;
     }
 
-    .nav-right {
-      gap: 0.75rem;
+    .nav-actions {
+      display: flex;
+      gap: 16px;
+      font-size: 1.15rem;
     }
 
-    .nav-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      padding: 0.35rem 0.9rem;
-      border-radius: var(--radius-pill);
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: var(--muted);
-      cursor: pointer;
+    /* Layout */
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 24px 72px;
     }
 
-    .nav-pill span.dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 0 4px rgba(82, 224, 165, 0.2);
-    }
-
-    .icon-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(255, 255, 255, 0.02);
-      cursor: pointer;
-      font-size: 0.9rem;
-      transition: background var(--transition-fast),
-        transform var(--transition-fast), border-color var(--transition-fast);
-    }
-
-    .icon-btn:hover {
-      background: rgba(255, 255, 255, 0.08);
-      transform: translateY(-1px);
-      border-color: rgba(255, 255, 255, 0.25);
-    }
-
-    .cart-btn {
-      position: relative;
-    }
-
-    .cart-count {
-      position: absolute;
-      top: -4px;
-      right: -4px;
-      min-width: 16px;
-      height: 16px;
-      border-radius: 999px;
-      background: var(--accent);
-      color: #fff;
-      font-size: 0.63rem;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 4px;
-    }
-
-    .mobile-menu-btn {
-      display: none;
-      font-size: 1.3rem;
-    }
-
-    /* =======================
-       HERO
-       ======================= */
-
+    /* Hero */
     .hero {
-      padding: 2.5rem 0 1rem;
-    }
-
-    .hero-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-      gap: 2.3rem;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 40px;
       align-items: center;
+      padding: 32px 0 56px;
     }
-
-    .hero-eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      padding: 0.2rem 0.8rem;
-      border-radius: var(--radius-pill);
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      font-size: 0.7rem;
-      letter-spacing: 0.18em;
+    .hero-copy-eyebrow {
+      letter-spacing: 0.24em;
       text-transform: uppercase;
-      color: var(--muted);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
     }
-
-    .hero-eyebrow span.badge {
-      padding: 0.1rem 0.5rem;
-      border-radius: 999px;
-      background: rgba(255, 78, 136, 0.12);
-      color: var(--accent);
+    .hero-title {
+      font-size: clamp(2.1rem, 4vw, 2.8rem);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
     }
-
-    .hero-heading {
-      font-family: "Playfair Display", serif;
-      font-size: clamp(2.4rem, 3.2vw + 1rem, 3.7rem);
-      line-height: 1.05;
-      margin: 1.15rem 0 0.75rem;
-      max-width: 480px;
-    }
-
-    .hero-heading span.accent {
-      background: linear-gradient(120deg, #ff4e88, #ffb8d1);
-      -webkit-background-clip: text;
-      color: transparent;
-    }
-
-    .hero-body {
-      max-width: 460px;
+    .hero-subtitle {
       font-size: 0.98rem;
-      color: var(--muted);
-      margin-bottom: 1.4rem;
+      color: var(--text-muted);
+      max-width: 32rem;
+      margin-bottom: 24px;
     }
-
-    .hero-body strong {
-      color: #fff;
-      font-weight: 500;
-    }
-
-    .hero-meta-row {
+    .hero-tags {
       display: flex;
       flex-wrap: wrap;
-      gap: 1.5rem;
-      margin-bottom: 1.6rem;
-      font-size: 0.82rem;
-      color: var(--muted);
+      gap: 8px;
+      margin-bottom: 24px;
     }
-
-    .hero-meta-label {
+    .pill {
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      letter-spacing: 0.16em;
-      font-size: 0.68rem;
-      color: rgba(255, 255, 255, 0.6);
-      margin-bottom: 0.3rem;
+      color: var(--text-muted);
+    }
+    .pill-accent {
+      border-color: transparent;
+      background: var(--accent);
+      color: #111111;
     }
 
-    .hero-meta-value {
-      font-weight: 500;
-    }
-
-    .hero-cta-row {
+    .hero-actions {
       display: flex;
+      gap: 12px;
       flex-wrap: wrap;
-      gap: 0.75rem;
-      align-items: center;
     }
-
-    .btn-primary {
-      padding: 0.8rem 1.7rem;
-      border-radius: var(--radius-pill);
+    .btn {
+      border-radius: 999px;
+      padding: 10px 22px;
+      font-size: 0.85rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
       border: none;
       cursor: pointer;
-      background: linear-gradient(120deg, #ff4e88, #ffb8d1);
-      color: #070707;
-      font-size: 0.9rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      box-shadow: 0 16px 36px rgba(255, 78, 136, 0.34);
-      transition: transform var(--transition-fast),
-        box-shadow var(--transition-fast), filter var(--transition-fast);
+      transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease;
     }
-
-    .btn-primary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 18px 40px rgba(255, 78, 136, 0.42);
-      filter: brightness(1.02);
-    }
-
-    .btn-ghost {
-      padding: 0.7rem 1.4rem;
-      border-radius: var(--radius-pill);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      cursor: pointer;
-      background: rgba(255, 255, 255, 0.02);
-      color: var(--text);
-      font-size: 0.85rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      transition: background var(--transition-fast), border-color var(--transition-fast),
-        transform var(--transition-fast);
-    }
-
-    .btn-ghost:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.3);
-      transform: translateY(-1px);
-    }
-
-    .hero-secondary-text {
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-
-    .hero-visual {
-      border-radius: var(--radius-lg);
-      background: radial-gradient(circle at top, #ffb8d1 0, #ff4e88 18%, #181018 45%, #070707 90%);
-      position: relative;
-      overflow: hidden;
-      padding: 1.4rem;
+    .btn-primary {
+      background: var(--accent);
+      color: #111;
       box-shadow: var(--shadow-soft);
     }
-
-    .hero-tag {
-      position: absolute;
-      top: 1rem;
-      left: 1rem;
-      padding: 0.3rem 0.8rem;
-      border-radius: var(--radius-pill);
-      background: rgba(7, 7, 7, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      font-size: 0.7rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
+    .btn-primary:hover {
+      background: var(--accent-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.1);
     }
-
-    .hero-price-tag {
-      position: absolute;
-      bottom: 1rem;
-      right: 1rem;
-      padding: 0.55rem 1rem;
-      border-radius: 999px;
-      background: rgba(7, 7, 7, 0.72);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      display: inline-flex;
-      flex-direction: column;
-      gap: 0.1rem;
-      font-size: 0.78rem;
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
     }
-
-    .hero-price-tag span.price {
-      font-weight: 600;
-      font-size: 0.9rem;
-    }
-
-    .hero-model-shape {
-      width: 100%;
-      aspect-ratio: 3 / 4;
-      border-radius: calc(var(--radius-lg) * 0.8);
-      background: linear-gradient(135deg, rgba(7, 7, 7, 0.94), rgba(7, 7, 7, 0.82));
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 1.8rem;
-    }
-
-    .hero-model-inner {
-      width: 76%;
-      height: 78%;
-      border-radius: 2rem;
-      background: linear-gradient(
-          to top,
-          rgba(7, 7, 7, 0.8),
-          rgba(7, 7, 7, 0.35)
-        ),
-        radial-gradient(circle at 20% 0, rgba(255, 184, 209, 0.55), transparent 55%),
-        radial-gradient(circle at 80% 0, rgba(255, 78, 136, 0.65), transparent 60%);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 0.85rem;
-      text-align: center;
-      padding: 1.2rem;
-    }
-
-    /* =======================
-       SHOP BY EDIT
-       ======================= */
-
-    .section {
-      padding: 2.4rem 0 1rem;
-    }
-
-    .section-header {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      margin-bottom: 1.3rem;
-      gap: 1rem;
-    }
-
-    .section-title {
-      font-size: 1.1rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .section-subtitle {
-      max-width: 360px;
-      font-size: 0.9rem;
-      color: var(--muted);
-    }
-
-    .edit-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 1rem;
-    }
-
-    .edit-card {
-      position: relative;
-      border-radius: var(--radius-md);
-      padding: 1rem;
-      background: radial-gradient(circle at top, #2a1823, #181818);
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      cursor: pointer;
-      transition: transform var(--transition-fast), box-shadow var(--transition-fast),
-        border-color var(--transition-fast), background var(--transition-fast);
-    }
-
-    .edit-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.75);
-      border-color: rgba(255, 255, 255, 0.16);
-      background: radial-gradient(circle at top, #3a1b2c, #181818);
-    }
-
-    .edit-tag {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: rgba(255, 255, 255, 0.6);
-    }
-
-    .edit-name {
-      margin-top: 0.6rem;
-      font-weight: 500;
-      font-size: 0.97rem;
-    }
-
-    .edit-meta {
-      margin-top: 0.25rem;
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-
-    .edit-pill {
-      position: absolute;
-      bottom: 0.8rem;
-      left: 1rem;
-      padding: 0.3rem 0.8rem;
-      border-radius: var(--radius-pill);
-      background: rgba(7, 7, 7, 0.75);
-      font-size: 0.68rem;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    /* =======================
-       PRODUCT GRID
-       ======================= */
-
-    .filters-bar {
-      border-radius: var(--radius-pill);
-      background: rgba(14, 14, 14, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 0.45rem 0.8rem;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.8rem;
-      font-size: 0.78rem;
-      margin-bottom: 1.2rem;
-    }
-
-    .filter-label {
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: rgba(255, 255, 255, 0.6);
-      font-size: 0.66rem;
-    }
-
-    .filter-group {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .filter-select {
-      background: rgba(7, 7, 7, 0.9);
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      color: var(--text);
-      padding: 0.25rem 0.9rem;
-      font-size: 0.78rem;
-      appearance: none;
-      cursor: pointer;
-      min-width: 120px;
-      background-image: linear-gradient(45deg, transparent 50%, #fff 50%),
-        linear-gradient(135deg, #fff 50%, transparent 50%);
-      background-position: calc(100% - 12px) 50%, calc(100% - 7px) 50%;
-      background-size: 5px 5px, 5px 5px;
-      background-repeat: no-repeat;
-    }
-
-    .filter-select:focus {
-      outline: none;
+    .btn-ghost:hover {
       border-color: var(--accent);
-      box-shadow: 0 0 0 1px rgba(255, 78, 136, 0.8);
     }
 
-    .filter-chip {
-      padding: 0.25rem 0.7rem;
+    .hero-image-wrapper {
+      position: relative;
+      border-radius: 32px;
+      overflow: hidden;
+      background: var(--bg-soft);
+      box-shadow: var(--shadow-soft);
+    }
+    .hero-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .hero-badge {
+      position: absolute;
+      bottom: 18px;
+      left: 18px;
+      background: rgba(255, 255, 255, 0.92);
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      font-size: 0.72rem;
-      display: inline-flex;
+      padding: 8px 16px;
+      font-size: 0.76rem;
+      display: flex;
       align-items: center;
-      gap: 0.35rem;
-      cursor: pointer;
+      gap: 8px;
     }
-
-    .filter-chip span.dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
+    .hero-badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
       background: var(--accent);
     }
 
-    .product-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 1rem;
+    /* Sections */
+    section {
+      padding: 24px 0;
     }
 
-    .product-card {
-      background: var(--bg-card);
-      border-radius: var(--radius-md);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      overflow: hidden;
+    .section-heading {
       display: flex;
-      flex-direction: column;
-      transition: transform var(--transition-fast),
-        box-shadow var(--transition-fast), border-color var(--transition-fast),
-        background var(--transition-fast);
-      position: relative;
-    }
-
-    .product-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.85);
-      border-color: rgba(255, 255, 255, 0.18);
-      background: radial-gradient(circle at top, #231218, #181818);
-    }
-
-    .product-tag {
-      position: absolute;
-      top: 0.6rem;
-      left: 0.6rem;
-      padding: 0.25rem 0.6rem;
-      border-radius: 999px;
-      background: rgba(7, 7, 7, 0.9);
-      font-size: 0.65rem;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-    }
-
-    .product-tag--hot {
-      color: var(--accent);
-    }
-
-    .product-tag--soft {
-      color: var(--muted);
-    }
-
-    .product-media {
-      padding: 0.8rem 0.8rem 0.5rem;
-    }
-
-    .product-image-placeholder {
-      width: 100%;
-      aspect-ratio: 3 / 4;
-      border-radius: 1.3rem;
-      background: radial-gradient(circle at top, #ffb8d1 0, #ff4e88 26%, #181818 78%);
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 1.2rem;
-    }
-
-    .product-image-inner {
-      width: 80%;
-      height: 74%;
-      border-radius: 1.5rem;
-      background: linear-gradient(
-          to top,
-          rgba(7, 7, 7, 0.9),
-          rgba(7, 7, 7, 0.35)
-        ),
-        radial-gradient(circle at 20% 0, rgba(255, 184, 209, 0.6), transparent 55%),
-        radial-gradient(circle at 80% 0, rgba(255, 78, 136, 0.7), transparent 60%);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .product-body {
-      padding: 0.5rem 0.9rem 0.9rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      font-size: 0.86rem;
-    }
-
-    .product-name {
-      font-weight: 500;
-    }
-
-    .product-meta-row {
-      display: flex;
-      align-items: center;
       justify-content: space-between;
-      gap: 0.4rem;
-      font-size: 0.8rem;
-      color: var(--muted);
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 18px;
     }
-
-    .product-price {
-      font-weight: 600;
-      color: #fff;
-    }
-
-    .product-size {
-      font-size: 0.75rem;
-    }
-
-    .product-color-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 0.3rem;
-    }
-
-    .product-color--rose {
-      background: #ff9bbf;
-    }
-
-    .product-color--onyx {
-      background: #111;
-    }
-
-    .product-color--almond {
-      background: #d7a482;
-    }
-
-    .product-color--cloud {
-      background: #f1f1f1;
-    }
-
-    .product-actions-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 0.4rem;
-      gap: 0.4rem;
-    }
-
-    .btn-add {
-      flex: 1;
-      padding: 0.45rem 0.8rem;
-      border-radius: 999px;
-      border: none;
-      cursor: pointer;
-      background: rgba(255, 78, 136, 0.1);
-      color: var(--accent);
-      font-size: 0.78rem;
-      font-weight: 500;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.35rem;
-      transition: background var(--transition-fast), color var(--transition-fast),
-        transform var(--transition-fast), box-shadow var(--transition-fast);
-    }
-
-    .btn-add:hover {
-      background: linear-gradient(120deg, #ff4e88, #ffb8d1);
-      color: #070707;
-      box-shadow: 0 8px 18px rgba(255, 78, 136, 0.35);
-      transform: translateY(-1px);
-    }
-
-    .wishlist-btn {
-      width: 30px;
-      height: 30px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      background: rgba(255, 255, 255, 0.03);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 0.8rem;
-    }
-
-    .wishlist-btn--active {
-      border-color: var(--accent);
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
-    /* =======================
-       NEWSLETTER & FOOTER
-       ======================= */
-
-    .newsletter {
-      padding: 2.4rem 0 0.7rem;
-    }
-
-    .newsletter-inner {
-      border-radius: var(--radius-lg);
-      background: radial-gradient(circle at top, #261521, #141414);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 1.8rem 1.5rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1.8rem;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .newsletter-copy {
-      max-width: 420px;
-    }
-
-    .newsletter-title {
+    .section-heading h2 {
       font-size: 1.1rem;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      margin-bottom: 0.4rem;
     }
-
-    .newsletter-text {
-      font-size: 0.88rem;
-      color: var(--muted);
-    }
-
-    .newsletter-form {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.6rem;
-      align-items: center;
-    }
-
-    .newsletter-input-wrap {
-      position: relative;
-      flex: 1 0 230px;
-    }
-
-    .newsletter-input {
-      width: 100%;
-      border-radius: var(--radius-pill);
-      background: rgba(7, 7, 7, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      padding: 0.65rem 3.2rem 0.65rem 1rem;
-      color: var(--text);
-      font-size: 0.85rem;
-    }
-
-    .newsletter-input::placeholder {
-      color: rgba(255, 255, 255, 0.4);
-    }
-
-    .newsletter-input:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px rgba(255, 78, 136, 0.8);
-    }
-
-    .newsletter-input-icon {
-      position: absolute;
-      right: 0.9rem;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 1rem;
-      color: rgba(255, 255, 255, 0.5);
-    }
-
-    .newsletter-note {
-      font-size: 0.7rem;
-      color: var(--muted);
-    }
-
-    footer {
-      padding: 1.8rem 0 2.2rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.04);
-      margin-top: 1.4rem;
+    .section-heading span {
       font-size: 0.8rem;
-      color: var(--muted);
+      color: var(--text-muted);
     }
 
-    .footer-row {
+    /* Video Gallery */
+    .video-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+    }
+    .video-card {
+      background: var(--bg-soft);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .video-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-soft);
+    }
+    .video-card iframe {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border: 0;
+    }
+    .video-card-info {
+      padding: 10px 14px 14px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    /* Shop Grid */
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+      margin-top: 10px;
+    }
+    .product-card {
+      background: var(--bg-soft);
+      border-radius: var(--radius-card);
+      padding: 14px;
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: 8px;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+    .product-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-soft);
+      border-color: var(--border-subtle);
+    }
+    .product-image-wrapper {
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f0f0f1;
+      margin-bottom: 4px;
+    }
+    .product-image-wrapper img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      transition: transform 0.18s ease;
+    }
+    .product-card:hover img {
+      transform: scale(1.03);
+    }
+    .product-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .product-meta {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .product-footer {
+      margin-top: auto;
+      display: flex;
       justify-content: space-between;
-      gap: 1rem;
       align-items: center;
+      font-size: 0.8rem;
     }
-
-    .footer-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.9rem;
+    .product-price {
+      font-weight: 600;
     }
-
-    .footer-links a {
+    .product-cta {
       text-transform: uppercase;
       letter-spacing: 0.14em;
-      font-size: 0.7rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
     }
 
-    /* =======================
-       RESPONSIVE
-       ======================= */
-
-    @media (max-width: 992px) {
-      .nav-links {
-        display: none;
-      }
-
-      .mobile-menu-btn {
-        display: inline-flex;
-      }
-
-      .hero-grid {
-        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-      }
-
-      .edit-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .product-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 20px 24px 26px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    footer .footer-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
     }
 
-    @media (max-width: 768px) {
+    /* Responsive */
+    @media (max-width: 900px) {
       .hero {
-        padding-top: 1.6rem;
-      }
-
-      .hero-grid {
         grid-template-columns: minmax(0, 1fr);
-      }
-
-      .hero-visual {
-        order: -1;
-      }
-
-      .section-header {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .newsletter-inner {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .product-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
-
-    @media (max-width: 520px) {
-      .container {
-        padding: 0 1.1rem;
-      }
-
+    @media (max-width: 720px) {
       .nav {
-        padding: 0.75rem 0;
+        padding-inline: 16px;
       }
-
-      .edit-grid {
-        grid-template-columns: minmax(0, 1fr);
+      main {
+        padding-inline: 16px;
       }
-
-      .product-grid {
-        grid-template-columns: minmax(0, 1fr);
-      }
-
-      .filters-bar {
-        border-radius: 1rem;
+      .nav-links {
+        display: none; /* keep it super minimal on mobile */
       }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <!-- =======================
-         HEADER
-         ======================= -->
-    <header>
-      <div class="container">
-        <nav class="nav">
-          <div class="nav-left">
-            <div class="brand">
-              <span class="brand-title">Luna Intimates</span>
-              <span class="brand-subtitle">Bras · Bodies · Beyond</span>
-            </div>
-            <div class="nav-links">
-              <button class="nav-link">Shop</button>
-              <button class="nav-link">New In</button>
-              <button class="nav-link">Best Sellers</button>
-              <button class="nav-link">Fit Guide</button>
-              <button class="nav-link">Stories</button>
-            </div>
-          </div>
-
-          <div class="nav-right">
-            <button class="nav-pill">
-              <span class="dot"></span>
-              Virtual fit · Live
-            </button>
-
-            <button class="icon-btn" aria-label="Search">
-              🔍
-            </button>
-
-            <button class="icon-btn" aria-label="Account">
-              👤
-            </button>
-
-            <button class="icon-btn cart-btn" aria-label="Shopping bag">
-              🛍
-              <span class="cart-count" id="cartCount">0</span>
-            </button>
-
-            <button class="icon-btn mobile-menu-btn" aria-label="Open menu">
-              ☰
-            </button>
-          </div>
-        </nav>
-      </div>
-    </header>
-
-    <!-- =======================
-         HERO
-         ======================= -->
-    <main>
-      <section class="hero">
-        <div class="container">
-          <div class="hero-grid">
-            <div class="hero-copy">
-              <div class="hero-eyebrow">
-                SS25 Drop
-                <span class="badge">New silhouettes</span>
-              </div>
-              <h1 class="hero-heading">
-                Bras that
-                <span class="accent">fit your mood,</span>
-                not just your size.
-              </h1>
-              <p class="hero-body">
-                Meet the <strong>SkinKind™ bra capsule</strong>: cloud-soft support,
-                inclusive sizing (28A–42H), and finishes designed to disappear under
-                everything from white tees to slip dresses.
-              </p>
-
-              <div class="hero-meta-row">
-                <div>
-                  <div class="hero-meta-label">Free shipping</div>
-                  <div class="hero-meta-value">On orders $80+</div>
-                </div>
-                <div>
-                  <div class="hero-meta-label">Try-on window</div>
-                  <div class="hero-meta-value">30-day fit guarantee</div>
-                </div>
-                <div>
-                  <div class="hero-meta-label">Fit range</div>
-                  <div class="hero-meta-value">28A – 42H</div>
-                </div>
-              </div>
-
-              <div class="hero-cta-row">
-                <button class="btn-primary">
-                  Shop the capsule
-                  <span>→</span>
-                </button>
-                <button class="btn-ghost">
-                  Explore fit guide
-                  <span>♡</span>
-                </button>
-              </div>
-              <p class="hero-secondary-text">
-                Ethically made, model-tested in real life, and rated 4.9★ by over
-                12,000 women.
-              </p>
-            </div>
-
-            <div class="hero-visual" aria-hidden="true">
-              <div class="hero-tag">SkinKind™ Sculpt Balconette</div>
-              <div class="hero-model-shape">
-                <div class="hero-model-inner">
-                  Editorial-ready hero image of a woman in a blush balconette bra,
-                  layered with soft shadows and a subtle neon halo.
-                </div>
-              </div>
-              <div class="hero-price-tag">
-                <span class="price">$68</span>
-                <span>3 for $159 · Mix & match</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- =======================
-           SHOP BY EDIT
-           ======================= -->
-      <section class="section" id="shop-by-edit">
-        <div class="container">
-          <div class="section-header">
-            <div>
-              <h2 class="section-title">Shop the edits</h2>
-            </div>
-            <p class="section-subtitle">
-              Curated drops for every version of you: from red-eye flights to first
-              dates and everything in between.
-            </p>
-          </div>
-
-          <div class="edit-grid">
-            <article class="edit-card">
-              <div class="edit-tag">01 · Everyday</div>
-              <h3 class="edit-name">Off-Duty Comfort</h3>
-              <p class="edit-meta">
-                Soft, wireless, and T-shirt smooth for coffee runs & Zoom calls.
-              </p>
-              <div class="edit-pill">Shop everyday →</div>
-            </article>
-
-            <article class="edit-card">
-              <div class="edit-tag">02 · Lace</div>
-              <h3 class="edit-name">After-Dark Lace</h3>
-              <p class="edit-meta">
-                Delicate florals, bold cuts, zero scratch. Romance, but modern.
-              </p>
-              <div class="edit-pill">Shop lace →</div>
-            </article>
-
-            <article class="edit-card">
-              <div class="edit-tag">03 · Sport</div>
-              <h3 class="edit-name">Studio to Street</h3>
-              <p class="edit-meta">
-                Sports bras that actually look good with trousers & trench coats.
-              </p>
-              <div class="edit-pill">Shop sport →</div>
-            </article>
-
-            <article class="edit-card">
-              <div class="edit-tag">04 · Full bust</div>
-              <h3 class="edit-name">Lift, Not Pinch</h3>
-              <p class="edit-meta">
-                Engineered support for D+ cups, minus the bulk and digging straps.
-              </p>
-              <div class="edit-pill">Shop full-bust →</div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <!-- =======================
-           PRODUCT GRID
-           ======================= -->
-      <section class="section" id="bras">
-        <div class="container">
-          <div class="section-header">
-            <div>
-              <h2 class="section-title">Bras · New in</h2>
-            </div>
-            <p class="section-subtitle">
-              Filter by style and color to find your next favorite bra. All styles
-              available in A–H cups unless noted.
-            </p>
-          </div>
-
-          <div class="filters-bar">
-            <span class="filter-label">Filter</span>
-
-            <div class="filter-group">
-              <span>Style</span>
-              <select id="styleFilter" class="filter-select">
-                <option value="all">All</option>
-                <option value="tshirt">T-shirt</option>
-                <option value="balconette">Balconette</option>
-                <option value="lace">Lace</option>
-                <option value="wireless">Wireless</option>
-                <option value="sport">Sport</option>
-              </select>
-            </div>
-
-            <div class="filter-group">
-              <span>Color</span>
-              <select id="colorFilter" class="filter-select">
-                <option value="all">All</option>
-                <option value="rose">Rose</option>
-                <option value="onyx">Onyx</option>
-                <option value="almond">Almond</option>
-                <option value="cloud">Cloud</option>
-              </select>
-            </div>
-
-            <button class="filter-chip" id="clearFiltersBtn">
-              <span class="dot"></span>
-              Clear filters
-            </button>
-          </div>
-
-          <div class="product-grid" id="productGrid">
-            <!-- Product 1 -->
-            <article
-              class="product-card"
-              data-style="tshirt"
-              data-color="rose"
-            >
-              <div class="product-tag product-tag--hot">Best seller</div>
-              <div class="product-media">
-                <div class="product-image-placeholder">
-                  <div class="product-image-inner"></div>
-                </div>
-              </div>
-              <div class="product-body">
-                <h3 class="product-name">CloudSoft™ T-Shirt Bra</h3>
-                <div class="product-meta-row">
-                  <span class="product-price">$62</span>
-                  <span class="product-size">28A–38G</span>
-                </div>
-                <div class="product-meta-row">
-                  <span>
-                    <span class="product-color-dot product-color--rose"></span>
-                    Rose Quartz
-                  </span>
-                  <span>4.9★ · 1,842 reviews</span>
-                </div>
-                <div class="product-actions-row">
-                  <button class="btn-add" data-name="CloudSoft T-Shirt Bra">
-                    + Add to bag
-                  </button>
-                  <button
-                    class="wishlist-btn"
-                    aria-label="Add to wishlist"
-                  >
-                    ♡
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <!-- Product 2 -->
-            <article
-              class="product-card"
-              data-style="balconette"
-              data-color="onyx"
-            >
-              <div class="product-tag product-tag--soft">New</div>
-              <div class="product-media">
-                <div class="product-image-placeholder">
-                  <div class="product-image-inner"></div>
-                </div>
-              </div>
-              <div class="product-body">
-                <h3 class="product-name">SculptLift™ Balconette</h3>
-                <div class="product-meta-row">
-                  <span class="product-price">$68</span>
-                  <span class="product-size">30B–42H</span>
-                </div>
-                <div class="product-meta-row">
-                  <span>
-                    <span class="product-color-dot product-color--onyx"></span>
-                    Onyx
-                  </span>
-                  <span>4.8★ · Invisible under tees</span>
-                </div>
-                <div class="product-actions-row">
-                  <button class="btn-add" data-name="SculptLift Balconette">
-                    + Add to bag
-                  </button>
-                  <button
-                    class="wishlist-btn"
-                    aria-label="Add to wishlist"
-                  >
-                    ♡
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <!-- Product 3 -->
-            <article
-              class="product-card"
-              data-style="lace"
-              data-color="almond"
-            >
-              <div class="product-tag product-tag--soft">Limited</div>
-              <div class="product-media">
-                <div class="product-image-placeholder">
-                  <div class="product-image-inner"></div>
-                </div>
-              </div>
-              <div class="product-body">
-                <h3 class="product-name">Midnight Muse Lace Plunge</h3>
-                <div class="product-meta-row">
-                  <span class="product-price">$72</span>
-                  <span class="product-size">30C–38H</span>
-                </div>
-                <div class="product-meta-row">
-                  <span>
-                    <span class="product-color-dot product-color--almond"></span>
-                    Toasted Almond
-                  </span>
-                  <span>Sheer but secure</span>
-                </div>
-                <div class="product-actions-row">
-                  <button class="btn-add" data-name="Midnight Muse Lace Plunge">
-                    + Add to bag
-                  </button>
-                  <button
-                    class="wishlist-btn"
-                    aria-label="Add to wishlist"
-                  >
-                    ♡
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <!-- Product 4 -->
-            <article
-              class="product-card"
-              data-style="wireless"
-              data-color="cloud"
-            >
-              <div class="product-tag product-tag--hot">Wire-free</div>
-              <div class="product-media">
-                <div class="product-image-placeholder">
-                  <div class="product-image-inner"></div>
-                </div>
-              </div>
-              <div class="product-body">
-                <h3 class="product-name">BareHug™ Wireless Bralette</h3>
-                <div class="product-meta-row">
-                  <span class="product-price">$54</span>
-                  <span class="product-size">XS–XXL</span>
-                </div>
-                <div class="product-meta-row">
-                  <span>
-                    <span class="product-color-dot product-color--cloud"></span>
-                    Cloud
-                  </span>
-                  <span>Double-layered for coverage</span>
-                </div>
-                <div class="product-actions-row">
-                  <button class="btn-add" data-name="BareHug Wireless Bralette">
-                    + Add to bag
-                  </button>
-                  <button
-                    class="wishlist-btn"
-                    aria-label="Add to wishlist"
-                  >
-                    ♡
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <!-- Product 5 -->
-            <article
-              class="product-card"
-              data-style="sport"
-              data-color="rose"
-            >
-              <div class="product-tag product-tag--soft">Impact</div>
-              <div class="product-media">
-                <div class="product-image-placeholder">
-                  <div class="product-image-inner"></div>
-                </div>
-              </div>
-              <div class="product-body">
-                <h3 class="product-name">TempoFlex™ High-Impact Bra</h3>
-                <div class="product-meta-row">
-                  <span class="product-price">$70</span>
-                  <span class="product-size">30C–40F</span>
-                </div>
-                <div class="product-meta-row">
-                  <span>
-                    <span class="product-color-dot product-color--rose"></span>
-                    Rose Noir
-                  </span>
-                  <span>Run-tested · No bounce</span>
-                </div>
-                <div class="product-actions-row">
-                  <button class="btn-add" data-name="TempoFlex High-Impact Bra">
-                    + Add to bag
-                  </button>
-                  <button
-                    class="wishlist-btn"
-                    aria-label="Add to wishlist"
-                  >
-                    ♡
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <!-- Product 6 -->
-            <article
-              class="product-card"
-              data-style="tshirt"
-              data-color="almond"
-            >
-              <div class="product-tag product-tag--soft">Nude edit</div>
-              <div class="product-media">
-                <div class="product-image-placeholder">
-                  <div class="product-image-inner"></div>
-                </div>
-              </div>
-              <div class="product-body">
-                <h3 class="product-name">SecondSkin™ Smoothing Bra</h3>
-                <div class="product-meta-row">
-                  <span class="product-price">$66</span>
-                  <span class="product-size">30A–40DD</span>
-                </div>
-                <div class="product-meta-row">
-                  <span>
-                    <span class="product-color-dot product-color--almond"></span>
-                    Mocha Nude
-                  </span>
-                  <span>Bonded edges · No lines</span>
-                </div>
-                <div class="product-actions-row">
-                  <button class="btn-add" data-name="SecondSkin Smoothing Bra">
-                    + Add to bag
-                  </button>
-                  <button
-                    class="wishlist-btn"
-                    aria-label="Add to wishlist"
-                  >
-                    ♡
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <!-- Product 7 -->
-            <article
-              class="product-card"
-              data-style="lace"
-              data-color="rose"
-            >
-              <div class="product-tag product-tag--soft">Date night</div>
-              <div class="product-media">
-                <div class="product-image-placeholder">
-                  <div class="product-image-inner"></div>
-                </div>
-              </div>
-              <div class="product-body">
-                <h3 class="product-name">VelvetHour™ Longline</h3>
-                <div class="product-meta-row">
-                  <span class="product-price">$78</span>
-                  <span class="product-size">32B–38G</span>
-                </div>
-                <div class="product-meta-row">
-                  <span>
-                    <span class="product-color-dot product-color--rose"></span>
-                    Blushed Wine
-                  </span>
-                  <span>Pairs with high-waist skirt</span>
-                </div>
-                <div class="product-actions-row">
-                  <button class="btn-add" data-name="VelvetHour Longline">
-                    + Add to bag
-                  </button>
-                  <button
-                    class="wishlist-btn"
-                    aria-label="Add to wishlist"
-                  >
-                    ♡
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <!-- Product 8 -->
-            <article
-              class="product-card"
-              data-style="wireless"
-              data-color="onyx"
-            >
-              <div class="product-tag product-tag--soft">Lounge</div>
-              <div class="product-media">
-                <div class="product-image-placeholder">
-                  <div class="product-image-inner"></div>
-                </div>
-              </div>
-              <div class="product-body">
-                <h3 class="product-name">Off-Duty Modal Bralette</h3>
-                <div class="product-meta-row">
-                  <span class="product-price">$52</span>
-                  <span class="product-size">XS–XXXL</span>
-                </div>
-                <div class="product-meta-row">
-                  <span>
-                    <span class="product-color-dot product-color--onyx"></span>
-                    Deep Onyx
-                  </span>
-                  <span>Match back joggers</span>
-                </div>
-                <div class="product-actions-row">
-                  <button class="btn-add" data-name="Off-Duty Modal Bralette">
-                    + Add to bag
-                  </button>
-                  <button
-                    class="wishlist-btn"
-                    aria-label="Add to wishlist"
-                  >
-                    ♡
-                  </button>
-                </div>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <!-- =======================
-           NEWSLETTER
-           ======================= -->
-      <section class="newsletter">
-        <div class="container">
-          <div class="newsletter-inner">
-            <div class="newsletter-copy">
-              <h2 class="newsletter-title">Stay in the lingerie loop</h2>
-              <p class="newsletter-text">
-                Be the first to know about new drops, limited color runs, and
-                surprise fit events. No spam, just really good bras.
-              </p>
-            </div>
-            <form
-              class="newsletter-form"
-              onsubmit="event.preventDefault(); alert('Subscribed! ✨');"
-            >
-              <div class="newsletter-input-wrap">
-                <input
-                  class="newsletter-input"
-                  type="email"
-                  placeholder="Your email for early access"
-                  required
-                />
-                <span class="newsletter-input-icon">✉️</span>
-              </div>
-              <button class="btn-primary" type="submit">
-                Join the list
-              </button>
-              <p class="newsletter-note">
-                By subscribing you agree to our Terms & Privacy.
-              </p>
-            </form>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <!-- =======================
-         FOOTER
-         ======================= -->
-    <footer>
-      <div class="container">
-        <div class="footer-row">
-          <span>© <span id="year"></span> Luna Intimates. All rights reserved.</span>
-          <div class="footer-links">
-            <a href="#">Privacy</a>
-            <a href="#">Shipping</a>
-            <a href="#">Returns</a>
-            <a href="#">Contact</a>
-            <a href="#">Instagram</a>
-          </div>
+  <header>
+    <div class="nav">
+      <div class="nav-left">
+        <!-- Swap this with your actual logo image if you like -->
+        <div class="logo-mark">BB</div>
+        <div class="logo-text">
+          <span>BustedBra</span>
+          <span>BRA SHOP</span>
         </div>
       </div>
-    </footer>
-  </div>
 
-  <!-- =======================
-       JS: FILTERS & CART
-       ======================= -->
+      <nav class="nav-links">
+        <a href="#home">Home</a>
+        <a href="#shop">Shop</a>
+        <a href="#video">Video</a>
+      </nav>
+
+      <div class="nav-actions">
+        <span aria-label="Search" title="Search">🔍</span>
+        <span aria-label="Account" title="Account">👤</span>
+        <span aria-label="Bag" title="Shopping Bag">👜</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="home">
+    <!-- Hero -->
+    <section class="hero">
+      <div>
+        <p class="hero-copy-eyebrow">Curated support for every body</p>
+        <h1 class="hero-title" id="hero-title">BustedBra, perfectly fitted.</h1>
+        <p class="hero-subtitle" id="hero-subtitle">
+          A modern bra boutique for everyday luxury. Discover inclusive sizing, expert fits,
+          and silhouettes that move with you.
+        </p>
+
+        <div class="hero-tags">
+          <span class="pill pill-accent">A–K cup</span>
+          <span class="pill">Inclusive sizing</span>
+          <span class="pill">Curated edits</span>
+        </div>
+
+        <div class="hero-actions">
+          <a href="#shop" class="btn btn-primary">Shop bras</a>
+          <a href="#video" class="btn btn-ghost">Watch fit stories</a>
+        </div>
+      </div>
+
+      <div class="hero-image-wrapper">
+        <!-- Replace src with your editorial hero image -->
+        <img
+          src="https://images.pexels.com/photos/7691149/pexels-photo-7691149.jpeg?auto=compress&cs=tinysrgb&w=1200"
+          alt="Model wearing a minimal nude bra"
+          class="hero-image"
+          id="hero-image"
+        />
+        <div class="hero-badge">
+          <span class="hero-badge-dot"></span>
+          <span>New arrivals: Soft Sculpt Collection</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Video Section -->
+    <section id="video">
+      <div class="section-heading">
+        <h2>Video</h2>
+        <span>Fit guides, styling tips & brand stories.</span>
+      </div>
+
+      <div class="video-grid" id="video-grid">
+        <!-- These are sample embedded YouTube videos.
+             The IDs can be generated/configured by the admin portal. -->
+        <article class="video-card" data-video-id="VIDEO_ID_1">
+          <iframe
+            src="https://www.youtube.com/embed/VIDEO_ID_1"
+            title="Fit Guide – Everyday T-shirt Bras"
+            loading="lazy"
+            allowfullscreen>
+          </iframe>
+          <div class="video-card-info">
+            Fit Guide · Everyday T-shirt Bras
+          </div>
+        </article>
+
+        <article class="video-card" data-video-id="VIDEO_ID_2">
+          <iframe
+            src="https://www.youtube.com/embed/VIDEO_ID_2"
+            title="How to measure at home"
+            loading="lazy"
+            allowfullscreen>
+          </iframe>
+          <div class="video-card-info">
+            How to measure your band & cup at home.
+          </div>
+        </article>
+
+        <article class="video-card" data-video-id="VIDEO_ID_3">
+          <iframe
+            src="https://www.youtube.com/embed/VIDEO_ID_3"
+            title="Behind the brand"
+            loading="lazy"
+            allowfullscreen>
+          </iframe>
+          <div class="video-card-info">
+            Behind the seams: the BustedBra story.
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Shop Section -->
+    <section id="shop">
+      <div class="section-heading">
+        <h2>Shop</h2>
+        <span>Pulling live inventory from Lightspeed X-Series.</span>
+      </div>
+
+      <div class="product-grid" id="product-grid">
+        <!-- Populated by JavaScript -->
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>© <span id="year"></span> BustedBra. All rights reserved.</span>
+      <span>Designed for comfort · Powered by Lightspeed.</span>
+    </div>
+  </footer>
+
   <script>
-    (function () {
-      const styleFilter = document.getElementById("styleFilter");
-      const colorFilter = document.getElementById("colorFilter");
-      const clearFiltersBtn = document.getElementById("clearFiltersBtn");
-      const productGrid = document.getElementById("productGrid");
-      const cartCountEl = document.getElementById("cartCount");
+    // DEMO products to render if Lightspeed API is not wired yet
+    const demoProducts = [
+      {
+        id: "demo-1",
+        name: "Soft Sculpt T-shirt Bra",
+        color: "Blush",
+        price: "$58",
+        imageUrl: "https://images.pexels.com/photos/6311645/pexels-photo-6311645.jpeg?auto=compress&cs=tinysrgb&w=800"
+      },
+      {
+        id: "demo-2",
+        name: "Lace Balcony Bra",
+        color: "Black",
+        price: "$64",
+        imageUrl: "https://images.pexels.com/photos/6311654/pexels-photo-6311654.jpeg?auto=compress&cs=tinysrgb&w=800"
+      },
+      {
+        id: "demo-3",
+        name: "Everyday Wireless Bra",
+        color: "Almond",
+        price: "$52",
+        imageUrl: "https://images.pexels.com/photos/7691149/pexels-photo-7691149.jpeg?auto=compress&cs=tinysrgb&w=800"
+      },
+      {
+        id: "demo-4",
+        name: "Longline Lace Bralette",
+        color: "Rose",
+        price: "$48",
+        imageUrl: "https://images.pexels.com/photos/6311579/pexels-photo-6311579.jpeg?auto=compress&cs=tinysrgb&w=800"
+      }
+    ];
 
-      let cartCount = 0;
+    function renderProducts(products) {
+      const grid = document.getElementById("product-grid");
+      grid.innerHTML = "";
 
-      function applyFilters() {
-        const style = styleFilter.value;
-        const color = colorFilter.value;
-        const cards = productGrid.querySelectorAll(".product-card");
+      products.forEach((product) => {
+        const card = document.createElement("article");
+        card.className = "product-card";
+        card.innerHTML = `
+          <div class="product-image-wrapper">
+            <img src="${product.imageUrl || product.image || ""}" alt="${product.name}" />
+          </div>
+          <div class="product-name">${product.name}</div>
+          <div class="product-meta">${product.color || ""}</div>
+          <div class="product-footer">
+            <span class="product-price">${product.price}</span>
+            <span class="product-cta">View</span>
+          </div>
+        `;
+        card.addEventListener("click", () => {
+          // Replace with your PDP route or Lightspeed buy link
+          // e.g. window.location.href = `/product.html?id=${product.id}`;
+          console.log("Clicked product", product);
+        });
+        grid.appendChild(card);
+      });
+    }
 
-        cards.forEach((card) => {
-          const cardStyle = card.getAttribute("data-style");
-          const cardColor = card.getAttribute("data-color");
+    async function loadProductsFromLightspeed() {
+      /*
+       * This function expects you to create a backend route, for example:
+       *   /api/lightspeed/products
+       *
+       * That backend route should:
+       *   - authenticate with Lightspeed X-Series (server-side, never in the browser)
+       *   - request products for the desired category / tag / location
+       *   - normalize product data to: { id, name, price, imageUrl, color }
+       *   - return JSON: { products: [...] }
+       */
+      try {
+        const res = await fetch("/api/lightspeed/products");
+        if (!res.ok) throw new Error("No backend yet");
+        const data = await res.json();
+        if (!data.products || !data.products.length) throw new Error("Empty result");
+        renderProducts(data.products);
+      } catch (err) {
+        console.warn("Lightspeed API not wired yet – using demo products.", err);
+        renderProducts(demoProducts);
+      }
+    }
 
-          const styleMatch = style === "all" || style === cardStyle;
-          const colorMatch = color === "all" || color === cardColor;
+    async function loadSiteConfig() {
+      /*
+       * Optional: load config.json generated by the admin portal.
+       * Structure example:
+       * {
+       *   "hero": { "title": "...", "subtitle": "...", "imageUrl": "..." },
+       *   "videos": [{ "title": "...", "youtubeId": "..." }, ...],
+       *   "collections": [{ "tag": "bras", "limit": 8 }]
+       * }
+       */
+      try {
+        const res = await fetch("/config.json");
+        if (!res.ok) return;
+        const config = await res.json();
 
-          if (styleMatch && colorMatch) {
-            card.style.display = "";
-          } else {
-            card.style.display = "none";
+        if (config.hero) {
+          if (config.hero.title) {
+            document.getElementById("hero-title").textContent = config.hero.title;
           }
-        });
+          if (config.hero.subtitle) {
+            document.getElementById("hero-subtitle").textContent = config.hero.subtitle;
+          }
+          if (config.hero.imageUrl) {
+            document.getElementById("hero-image").src = config.hero.imageUrl;
+          }
+        }
+
+        if (Array.isArray(config.videos) && config.videos.length) {
+          const grid = document.getElementById("video-grid");
+          grid.innerHTML = "";
+          config.videos.forEach((v) => {
+            const card = document.createElement("article");
+            card.className = "video-card";
+            card.innerHTML = `
+              <iframe
+                src="https://www.youtube.com/embed/${v.youtubeId}"
+                title="${v.title || "Video"}"
+                loading="lazy"
+                allowfullscreen></iframe>
+              <div class="video-card-info">${v.title || ""}</div>
+            `;
+            grid.appendChild(card);
+          });
+        }
+      } catch (err) {
+        console.warn("No config.json found yet – using defaults.", err);
       }
+    }
 
-      function resetFilters() {
-        styleFilter.value = "all";
-        colorFilter.value = "all";
-        applyFilters();
-      }
-
-      styleFilter.addEventListener("change", applyFilters);
-      colorFilter.addEventListener("change", applyFilters);
-      clearFiltersBtn.addEventListener("click", resetFilters);
-
-      // Add to bag
-      document.querySelectorAll(".btn-add").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          cartCount += 1;
-          cartCountEl.textContent = cartCount;
-        });
-      });
-
-      // Wishlist toggle
-      document.querySelectorAll(".wishlist-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          btn.classList.toggle("wishlist-btn--active");
-          btn.textContent = btn.classList.contains("wishlist-btn--active") ? "♥" : "♡";
-        });
-      });
-
-      // Year in footer
+    document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("year").textContent = new Date().getFullYear();
-    })();
+      loadSiteConfig();
+      loadProductsFromLightspeed();
+    });
   </script>
 </body>
 </html>

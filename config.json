@@ -1,0 +1,28 @@
+{
+  "hero": {
+    "title": "BustedBra, perfectly fitted.",
+    "subtitle": "A modern bra boutique for everyday luxury. Discover inclusive sizing, expert fits, and silhouettes that move with you.",
+    "imageUrl": "https://images.pexels.com/photos/7691149/pexels-photo-7691149.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    "ctaLabel": "Shop bras",
+    "ctaLink": "#shop"
+  },
+  "videos": [
+    {
+      "title": "Fit Guide – Everyday T-shirt Bras",
+      "youtubeId": "VIDEO_ID_1"
+    },
+    {
+      "title": "How to Measure Your Bra Size at Home",
+      "youtubeId": "VIDEO_ID_2"
+    },
+    {
+      "title": "Behind the Seams: The BustedBra Story",
+      "youtubeId": "VIDEO_ID_3"
+    }
+  ],
+  "lightspeed": {
+    "storeId": "X_SERIES_STORE_ID",
+    "defaultTag": "bras",
+    "locationLabel": "Scottsdale Flagship"
+  }
+}

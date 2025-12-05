@@ -115,6 +115,9 @@
       gap: 16px;
       font-size: 1.15rem;
     }
+    .nav-action-btn {
+      cursor: pointer;
+    }
 
     /* Layout */
     main {
@@ -366,10 +369,178 @@
       flex-wrap: wrap;
     }
 
-    /* Responsive */
+    /* Shopper profile overlay */
+    .profile-overlay[hidden] {
+      display: none;
+    }
+    .profile-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+      padding: 16px;
+    }
+    .profile-panel {
+      max-width: 820px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 24px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr);
+      overflow: hidden;
+    }
+    .profile-left,
+    .profile-right {
+      padding: 20px 22px 18px;
+    }
+    .profile-left {
+      border-right: 1px solid var(--border-subtle);
+    }
+    .profile-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .profile-header h2 {
+      font-size: 0.95rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    .profile-close-btn {
+      border: none;
+      background: transparent;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    .profile-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .profile-section-title {
+      font-size: 0.78rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 14px 0 6px;
+    }
+    label {
+      display: block;
+      font-size: 0.78rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      font-size: 0.86rem;
+      margin-bottom: 12px;
+      background: #fafafa;
+    }
+
+    .profile-note {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .orders-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .orders-header-title {
+      font-size: 0.8rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .orders-list {
+      list-style: none;
+      max-height: 260px;
+      overflow-y: auto;
+      margin-top: 4px;
+      padding-right: 4px;
+    }
+    .orders-item {
+      border-bottom: 1px solid #f0f0f2;
+      padding: 8px 0;
+      font-size: 0.82rem;
+    }
+    .orders-item:last-child {
+      border-bottom: none;
+    }
+    .orders-line-main {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .orders-number {
+      font-weight: 600;
+    }
+    .orders-status {
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 0.7rem;
+    }
+    .orders-status.processing { color: #e09a3d; }
+    .orders-status.completed { color: #2f9c5b; }
+    .orders-status.cancelled { color: #c44b4b; }
+    .orders-line-sub {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      margin-top: 2px;
+    }
+    .orders-empty {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      padding: 4px 0;
+    }
+    .profile-user-line {
+      font-size: 0.82rem;
+      margin-bottom: 4px;
+    }
+    .profile-user-line span {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+    .profile-signout {
+      margin-top: 10px;
+      font-size: 0.78rem;
+    }
+    .profile-signout button {
+      border: none;
+      background: transparent;
+      color: #c44b4b;
+      font-size: 0.78rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
     @media (max-width: 900px) {
       .hero {
         grid-template-columns: minmax(0, 1fr);
+      }
+      .profile-panel {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .profile-left {
+        border-right: none;
+        border-bottom: 1px solid var(--border-subtle);
       }
     }
     @media (max-width: 720px) {
@@ -380,7 +551,7 @@
         padding-inline: 16px;
       }
       .nav-links {
-        display: none; /* keep it super minimal on mobile */
+        display: none; /* keep it minimal on mobile */
       }
     }
   </style>
@@ -389,7 +560,6 @@
   <header>
     <div class="nav">
       <div class="nav-left">
-        <!-- Swap this with your actual logo image if you like -->
         <div class="logo-mark">BB</div>
         <div class="logo-text">
           <span>BustedBra</span>
@@ -404,9 +574,9 @@
       </nav>
 
       <div class="nav-actions">
-        <span aria-label="Search" title="Search">🔍</span>
-        <span aria-label="Account" title="Account">👤</span>
-        <span aria-label="Bag" title="Shopping Bag">👜</span>
+        <span class="nav-action-btn" aria-label="Search" title="Search">🔍</span>
+        <span class="nav-action-btn" id="account-button" aria-label="Account" title="Account">👤</span>
+        <span class="nav-action-btn" aria-label="Bag" title="Shopping Bag">👜</span>
       </div>
     </div>
   </header>
@@ -457,8 +627,6 @@
       </div>
 
       <div class="video-grid" id="video-grid">
-        <!-- These are sample embedded YouTube videos.
-             The IDs can be generated/configured by the admin portal. -->
         <article class="video-card" data-video-id="VIDEO_ID_1">
           <iframe
             src="https://www.youtube.com/embed/VIDEO_ID_1"
@@ -509,6 +677,82 @@
       </div>
     </section>
   </main>
+
+  <!-- Shopper Profile Overlay -->
+  <div class="profile-overlay" id="profile-overlay" hidden>
+    <div class="profile-panel">
+      <div class="profile-left">
+        <div class="profile-header">
+          <h2>Shopper profile</h2>
+          <button class="profile-close-btn" id="profile-close-btn" aria-label="Close">×</button>
+        </div>
+        <p class="profile-subtitle">
+          New and returning shoppers can sign in to view past orders, track processing orders,
+          and keep shipping details on file.
+        </p>
+
+        <!-- Logged out view -->
+        <div id="profile-logged-out">
+          <div class="profile-section-title">Sign in</div>
+          <form id="login-form">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" required />
+
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" required />
+
+            <button type="submit" class="btn btn-primary" style="margin-top: 4px;">Sign in</button>
+          </form>
+
+          <div class="profile-section-title">Create account</div>
+          <form id="signup-form">
+            <label for="signup-name">Full name</label>
+            <input type="text" id="signup-name" required />
+
+            <label for="signup-email">Email</label>
+            <input type="email" id="signup-email" required />
+
+            <label for="signup-password">Password</label>
+            <input type="password" id="signup-password" required />
+
+            <button type="submit" class="btn btn-ghost" style="margin-top: 4px;">Create account</button>
+          </form>
+          <p class="profile-note">
+            Account creation and sign-in are backed by your store’s secure backend.
+            Lightspeed X-Series keeps inventory and order data in sync.
+          </p>
+        </div>
+
+        <!-- Logged in view -->
+        <div id="profile-logged-in" hidden>
+          <div class="profile-section-title">Welcome back</div>
+          <p class="profile-user-line">
+            <strong id="profile-name">Shopper</strong><br />
+            <span id="profile-email"></span>
+          </p>
+          <div class="profile-signout">
+            <button type="button" id="signout-btn">Sign out</button>
+          </div>
+          <p class="profile-note">
+            Your profile is connected to your Lightspeed customer record. Orders placed in-store
+            and online can be surfaced here when your integration is live.
+          </p>
+        </div>
+      </div>
+
+      <div class="profile-right">
+        <div class="orders-header">
+          <span class="orders-header-title">Orders</span>
+          <span class="profile-note" id="orders-status-label">Signed-out</span>
+        </div>
+        <ul class="orders-list" id="orders-list">
+          <li class="orders-empty">
+            Sign in or create an account to see past and current orders.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
   <footer>
     <div class="footer-inner">
@@ -570,7 +814,6 @@
         `;
         card.addEventListener("click", () => {
           // Replace with your PDP route or Lightspeed buy link
-          // e.g. window.location.href = `/product.html?id=${product.id}`;
           console.log("Clicked product", product);
         });
         grid.appendChild(card);
@@ -579,14 +822,9 @@
 
     async function loadProductsFromLightspeed() {
       /*
-       * This function expects you to create a backend route, for example:
-       *   /api/lightspeed/products
-       *
-       * That backend route should:
-       *   - authenticate with Lightspeed X-Series (server-side, never in the browser)
-       *   - request products for the desired category / tag / location
-       *   - normalize product data to: { id, name, price, imageUrl, color }
-       *   - return JSON: { products: [...] }
+       * Backend endpoint should:
+       * - Use Lightspeed X-Series API (server-side)
+       * - Normalize to { id, name, price, imageUrl, color }
        */
       try {
         const res = await fetch("/api/lightspeed/products");
@@ -601,15 +839,6 @@
     }
 
     async function loadSiteConfig() {
-      /*
-       * Optional: load config.json generated by the admin portal.
-       * Structure example:
-       * {
-       *   "hero": { "title": "...", "subtitle": "...", "imageUrl": "..." },
-       *   "videos": [{ "title": "...", "youtubeId": "..." }, ...],
-       *   "collections": [{ "tag": "bras", "limit": 8 }]
-       * }
-       */
       try {
         const res = await fetch("/config.json");
         if (!res.ok) return;
@@ -649,10 +878,186 @@
       }
     }
 
+    // Shopper profile logic
+    let shopperSession = null;
+
+    function updateProfileUI() {
+      const loggedOut = document.getElementById("profile-logged-out");
+      const loggedIn = document.getElementById("profile-logged-in");
+      const ordersStatusLabel = document.getElementById("orders-status-label");
+
+      if (shopperSession) {
+        loggedOut.hidden = true;
+        loggedIn.hidden = false;
+        document.getElementById("profile-name").textContent =
+          shopperSession.firstName || shopperSession.name || "Shopper";
+        document.getElementById("profile-email").textContent =
+          shopperSession.email || "";
+        ordersStatusLabel.textContent = "Connected";
+      } else {
+        loggedOut.hidden = false;
+        loggedIn.hidden = true;
+        ordersStatusLabel.textContent = "Signed-out";
+      }
+    }
+
+    async function fetchSession() {
+      try {
+        const res = await fetch("/api/auth/session", {
+          credentials: "include"
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        shopperSession = data.user || null;
+      } catch {
+        shopperSession = null;
+      }
+      updateProfileUI();
+      if (shopperSession) {
+        loadOrders();
+      } else {
+        const list = document.getElementById("orders-list");
+        list.innerHTML =
+          '<li class="orders-empty">Sign in or create an account to see past and current orders.</li>';
+      }
+    }
+
+    async function loadOrders() {
+      try {
+        const res = await fetch("/api/lightspeed/orders", {
+          credentials: "include"
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        const orders = data.orders || [];
+        const list = document.getElementById("orders-list");
+        list.innerHTML = "";
+
+        if (!orders.length) {
+          list.innerHTML =
+            '<li class="orders-empty">You don\'t have any orders yet.</li>';
+          return;
+        }
+
+        orders.forEach((o) => {
+          const li = document.createElement("li");
+          li.className = "orders-item";
+          const status = (o.status || "").toLowerCase();
+          li.innerHTML = `
+            <div class="orders-line-main">
+              <span class="orders-number">#${o.number || o.id}</span>
+              <span class="orders-status ${status}">
+                ${(o.status || "").toUpperCase()}
+              </span>
+            </div>
+            <div class="orders-line-sub">
+              <span>${o.placedAt ? new Date(o.placedAt).toLocaleDateString() : ""}</span>
+              <span>${o.total || ""}</span>
+            </div>
+          `;
+          list.appendChild(li);
+        });
+      } catch (err) {
+        console.warn("Could not load orders yet.", err);
+        const list = document.getElementById("orders-list");
+        list.innerHTML =
+          '<li class="orders-empty">Orders will appear here once your Lightspeed integration is live.</li>';
+      }
+    }
+
+    async function handleLogin(event) {
+      event.preventDefault();
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value;
+
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email, password })
+        });
+        if (!res.ok) throw new Error("Login failed");
+        await fetchSession();
+      } catch (err) {
+        alert("Sign-in will work once your backend auth is connected.\n(For now this is a placeholder.)");
+        console.warn(err);
+      }
+    }
+
+    async function handleSignup(event) {
+      event.preventDefault();
+      const name = document.getElementById("signup-name").value.trim();
+      const email = document.getElementById("signup-email").value.trim();
+      const password = document.getElementById("signup-password").value;
+
+      try {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ name, email, password })
+        });
+        if (!res.ok) throw new Error("Signup failed");
+        await fetchSession();
+      } catch (err) {
+        alert("Account creation will work once your backend auth is connected.\n(For now this is a placeholder.)");
+        console.warn(err);
+      }
+    }
+
+    async function handleSignout() {
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "include"
+        });
+      } catch (err) {
+        console.warn("Logout placeholder", err);
+      }
+      shopperSession = null;
+      updateProfileUI();
+      const list = document.getElementById("orders-list");
+      list.innerHTML =
+        '<li class="orders-empty">Sign in or create an account to see past and current orders.</li>';
+    }
+
+    function openProfile() {
+      document.getElementById("profile-overlay").hidden = false;
+      fetchSession();
+    }
+
+    function closeProfile() {
+      document.getElementById("profile-overlay").hidden = true;
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("year").textContent = new Date().getFullYear();
       loadSiteConfig();
       loadProductsFromLightspeed();
+
+      document
+        .getElementById("account-button")
+        .addEventListener("click", openProfile);
+      document
+        .getElementById("profile-close-btn")
+        .addEventListener("click", closeProfile);
+      document
+        .getElementById("login-form")
+        .addEventListener("submit", handleLogin);
+      document
+        .getElementById("signup-form")
+        .addEventListener("submit", handleSignup);
+      document
+        .getElementById("signout-btn")
+        .addEventListener("click", handleSignout);
+
+      // Optional: close overlay when clicking the dimmed background
+      document
+        .getElementById("profile-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target.id === "profile-overlay") closeProfile();
+        });
     });
   </script>
 </body>

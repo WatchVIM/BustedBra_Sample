@@ -1183,7 +1183,7 @@ async function playWithAdsIfNeeded({ containerEl, isAvod, isLive, adConfig }) {
     ensureRelativePosition(containerEl);
 
     const adDiv = document.createElement("div");
-    adDiv.className = "absolute inset-0 z-20 bg-black/90 flex items-center justify-center";
+    adDiv.className = "absolute inset-0 z-[99999] bg-black/90 flex items-center justify-center";
     containerEl.appendChild(adDiv);
 
     let cleanupCalled = false;

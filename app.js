@@ -1404,45 +1404,218 @@ async function playWithAdsIfNeeded({ containerEl, isAvod, isLive, adConfig }) {
   }
 
   // ---------- Global Ads + VAST orchestration ----------
+   // ---------- IMA VAST runner ----------
+  async function runVastAd(vastTag, containerEl, { onBeforeAd, onComplete } = {}) {
+    if (!containerEl || !vastTag) return false;
+
+    // Make sure container is positioned so overlay can be absolute
+    ensureRelativePosition(containerEl);
+
+    // Kill any Tap-to-Play button while ads run
+    removeTapToPlay(containerEl);
+
+    const adDiv = document.createElement("div");
+    // IMPORTANT: Tailwind arbitrary value syntax (z-[99999]) — NOT z-99999
+    adDiv.className = "wv-ad-overlay absolute inset-0 z-[99999] bg-black/90 flex items-center justify-center";
+    containerEl.appendChild(adDiv);
+
+    let cleanupCalled = false;
+    const cleanup = (ok) => {
+      if (cleanupCalled) return;
+      cleanupCalled = true;
+      try { adDiv.remove(); } catch (_) {}
+      try { onComplete && onComplete(!!ok); } catch (_) {}
+    };
+
+    const ok = await ensureImaLoaded();
+    if (!ok) { cleanup(false); return false; }
+
+    let tries = 0;
+    const maxTries = 12;
+
+    const initIMA = () => {
+      tries++;
+
+      const videoEl = findVideoInContainer(containerEl);
+      if (!videoEl) {
+        if (tries < maxTries) return setTimeout(initIMA, 250);
+        logAds("No video element found for VAST ad.");
+        cleanup(false);
+        return;
+      }
+
+      try {
+        const adDisplayContainer = new google.ima.AdDisplayContainer(adDiv, videoEl);
+        const adsLoader = new google.ima.AdsLoader(adDisplayContainer);
+
+        adsLoader.addEventListener(
+          google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED,
+          (e) => {
+            let adsManager;
+            try {
+              adsManager = e.getAdsManager(videoEl);
+            } catch (err) {
+              logAds("getAdsManager failed", err);
+              cleanup(false);
+              return;
+            }
+
+            const AdEvent = google.ima.AdEvent.Type;
+
+            adsManager.addEventListener(AdEvent.ALL_ADS_COMPLETED, () => cleanup(true));
+            adsManager.addEventListener(AdEvent.CONTENT_RESUME_REQUESTED, () => cleanup(true));
+            adsManager.addEventListener(google.ima.AdErrorEvent.Type.AD_ERROR, (errEvt) => {
+              logAds("Ad error", errEvt);
+              cleanup(false);
+            });
+
+            try { onBeforeAd && onBeforeAd(videoEl); } catch (_) {}
+
+            const w = containerEl.clientWidth || 640;
+            const h = containerEl.clientHeight || 360;
+
+            try { adDisplayContainer.initialize(); } catch (_) {}
+
+            try {
+              adsManager.init(w, h, google.ima.ViewMode.NORMAL);
+              adsManager.start();
+            } catch (err) {
+              logAds("adsManager.start failed", err);
+              cleanup(false);
+            }
+          },
+          false
+        );
+
+        adsLoader.addEventListener(
+          google.ima.AdErrorEvent.Type.AD_ERROR,
+          (errEvt) => {
+            logAds("AdsLoader error", errEvt);
+            cleanup(false);
+          },
+          false
+        );
+
+        const adsRequest = new google.ima.AdsRequest();
+        adsRequest.adTagUrl = vastTag;
+        adsRequest.linearAdSlotWidth = containerEl.clientWidth || 640;
+        adsRequest.linearAdSlotHeight = containerEl.clientHeight || 360;
+
+        adsLoader.requestAds(adsRequest);
+
+        // fail-safe so ads never hang playback
+        setTimeout(() => cleanup(false), 20000);
+      } catch (err) {
+        logAds("VAST ad setup failed", err);
+        cleanup(false);
+      }
+    };
+
+    initIMA();
+    return true;
+  }
+
+  // ---------- VOD: pre-roll + repeating mid-roll ----------
+  function setupVodAds(adConfig, containerEl) {
+    const { preTag, midTag, midSeconds, midEveryMins } = adConfig || {};
+    if (!preTag && !midTag) return;
+
+    const getVideo = (cb, attempt = 0) => {
+      const v = findVideoInContainer(containerEl);
+      if (v) return cb(v);
+      if (attempt < 12) return setTimeout(() => getVideo(cb, attempt + 1), 250);
+    };
+
+    // Pre-roll
+    if (preTag) {
+      getVideo((video) => {
+        runVastAd(preTag, containerEl, {
+          onBeforeAd: () => { try { video.pause(); } catch (_) {} },
+          onComplete: () => { try { video.play().catch(() => {}); } catch (_) { addTapToPlayFallback(containerEl); } }
+        });
+      });
+    }
+
+    // Mid-roll: repeating interval OR single midpoint fallback
+    if (midTag) {
+      getVideo((video) => {
+        let lastFire = 0;
+        let firedOnce = false;
+
+        const every = Number(midEveryMins || 0);
+
+        if (every >= 1) {
+          const handler = () => {
+            const now = Date.now();
+            if (now - lastFire < every * 60 * 1000) return;
+            if (!video.currentTime || video.currentTime < 15) return;
+
+            lastFire = now;
+            logAds(`VOD mid-roll firing every ${every} mins`);
+
+            runVastAd(midTag, containerEl, {
+              onBeforeAd: () => { try { video.pause(); } catch (_) {} },
+              onComplete: () => { try { video.play().catch(() => {}); } catch (_) { addTapToPlayFallback(containerEl); } }
+            });
+          };
+
+          const intervalId = setInterval(handler, 1000);
+          video.addEventListener("ended", () => clearInterval(intervalId), { once: true });
+          window.addEventListener("hashchange", () => clearInterval(intervalId), { once: true });
+          return;
+        }
+
+        // fallback: single midpoint shot
+        let triggerSec = midSeconds || null;
+
+        const handler = () => {
+          if (firedOnce) return;
+          const dur = video.duration;
+          if (!dur || !isFinite(dur)) return;
+
+          if (triggerSec == null || triggerSec <= 0) triggerSec = dur / 2;
+
+          if (video.currentTime >= triggerSec) {
+            firedOnce = true;
+            video.removeEventListener("timeupdate", handler);
+
+            runVastAd(midTag, containerEl, {
+              onBeforeAd: () => { try { video.pause(); } catch (_) {} },
+              onComplete: () => { try { video.play().catch(() => {}); } catch (_) { addTapToPlayFallback(containerEl); } }
+            });
+          }
+        };
+
+        video.addEventListener("timeupdate", handler);
+      });
+    }
+  }
+
+  // ---------- Global Ads + VAST orchestration ----------
   async function playWithAdsIfNeeded({ containerEl, isAvod, isLive, adConfig }) {
-  if (!containerEl) return;
+    if (!containerEl) return;
 
-  // Ensure any Tap-to-Play is removed while ads are running
-  removeTapToPlay(containerEl);
+    const shouldPlayGlobal =
+      (isAvod && CONFIG.PLAY_GLOBAL_ADS_ON_AVOD) || (isLive && CONFIG.PLAY_GLOBAL_ADS_ON_LIVE);
 
-  // Pause underlying content while ads run (prevents “behind the ad” visuals)
-  try {
-    const v = findVideoInContainer(containerEl);
-    if (v?.pause) v.pause();
-  } catch (_) {}
+    // Global pod first (optional) — pause content so no double audio
+    if (shouldPlayGlobal && Array.isArray(CONFIG.GLOBAL_ADS) && CONFIG.GLOBAL_ADS.length) {
+      let restore = null;
+      try {
+        restore = pauseContentAudio(containerEl);
+        logAds("Playing GLOBAL_ADS pod (in-player)");
+        await playGlobalAdPod(CONFIG.GLOBAL_ADS, { mountEl: containerEl });
+      } catch (_) {
+      } finally {
+        try { restore && restore(); } catch (_) {}
+      }
+    }
 
-  // Global pod first (optional) — MOUNTED IN PLAYER
-  const shouldPlayGlobal =
-    (isAvod && CONFIG.PLAY_GLOBAL_ADS_ON_AVOD) || (isLive && CONFIG.PLAY_GLOBAL_ADS_ON_LIVE);
-
-  if (shouldPlayGlobal && Array.isArray(CONFIG.GLOBAL_ADS) && CONFIG.GLOBAL_ADS.length) {
-    logAds("Playing GLOBAL_ADS pod (in-player)");
-    try { await playGlobalAdPod(CONFIG.GLOBAL_ADS, { mountEl: containerEl }); } catch (_) {}
+    // Now wire up VAST ads for VOD
+    if (adConfig && (adConfig.preTag || adConfig.midTag)) {
+      setupVodAds(adConfig, containerEl);
+    }
   }
-
-  // Ensure IMA ready before any VAST use
-  const ok = await ensureImaLoaded();
-  if (!ok) return;
-
-  // VOD: use adConfig pre/mid
-  if (adConfig && (adConfig.preTag || adConfig.midTag)) {
-    setupVodAds(adConfig, containerEl);
-  }
-
-  // Try to resume playback after ad setup
-  try {
-    const v = findVideoInContainer(containerEl);
-    if (v?.play) await v.play();
-  } catch (_) {
-    // If autoplay blocked, show Tap-to-Play now (ads are done)
-    addTapToPlayFallback(containerEl);
-  }
-}
 
   // =========================================================
   // PLAYER MOUNT

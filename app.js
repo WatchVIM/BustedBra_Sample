@@ -2933,32 +2933,33 @@
   }
 
   async function setupLoopAds(containerEl) {
-    ensureLoopState();
-    cleanupLoopTimers();
+  ensureLoopState();
+  cleanupLoopTimers();
 
-    const ch = state.loop.channel || getLoopChannelObject() || {};
-    const freq =
-      numOrNull(ch.adFrequencyMins) ??
-      numOrNull(ch.adEveryMins) ??
-      CONFIG.LIVE_AD_FREQUENCY_MINS_FALLBACK;
+  const ch = state.loop.channel || getLoopChannelObject() || {};
+  const freq =
+    numOrNull(ch.adFrequencyMins) ??
+    numOrNull(ch.adEveryMins) ??
+    CONFIG.LIVE_AD_FREQUENCY_MINS_FALLBACK;
 
-    // continue inside setupLoopAds(containerEl) right after:
-    //   const base = { monetization:{avod:true}, avod:true,
-
-      advertising: {
-        preRollVastTag: pickFirstString(
-          ch.preRollVastTag, ch.preRollTag, ch.prerollTag, ch.vastTag, ch.vast,
-          ch.ads?.preRollVastTag, ch.ads?.preRollTag, ch.ads?.vastTag,
-          CONFIG.VAST_TAG
-        ),
-        midRollVastTag: pickFirstString(
-          ch.midRollVastTag, ch.midRollTag, ch.midrollTag,
-          ch.ads?.midRollVastTag, ch.ads?.midRollTag,
-          CONFIG.VAST_TAG
-        ),
-        midRollEveryMins: numOrNull(ch.midRollEveryMins) ?? numOrNull(ch.midrollEveryMins) ?? freq
-      }
-    };
+  // ✅ ADD THIS (this is what your comment implies)
+  const base = {
+    monetization: { avod: true },
+    avod: true,
+    advertising: {
+      preRollVastTag: pickFirstString(
+        ch.preRollVastTag, ch.preRollTag, ch.prerollTag, ch.vastTag, ch.vast,
+        ch.ads?.preRollVastTag, ch.ads?.preRollTag, ch.ads?.vastTag,
+        CONFIG.VAST_TAG
+      ),
+      midRollVastTag: pickFirstString(
+        ch.midRollVastTag, ch.midRollTag, ch.midrollTag,
+        ch.ads?.midRollVastTag, ch.ads?.midRollTag,
+        CONFIG.VAST_TAG
+      ),
+      midRollEveryMins: numOrNull(ch.midRollEveryMins) ?? numOrNull(ch.midrollEveryMins) ?? freq
+    }
+  };
 
     // Live “break” tag to run on cadence (prefer mid, then pre, then global)
     const liveBreakTag = pickFirstString(

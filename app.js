@@ -22,32 +22,39 @@
    - Mux playback pages
    - Optional Supabase auth (login + signup + membership)
    - Paywall logic for AVOD / SVOD / TVOD (supports hybrids)
-   - TV D-pad focus navigation
+   - TV D-pad focus navigation (TV devices only)
    - LIVE loop channel (no manual Next)
    - VAST pre-roll + repeating mid-roll via Google IMA SDK (titles + episodes + LIVE)
    - Optional Global Ads Pod (mux/url) before content (AVOD + LIVE)
    - Mobile:
        • Top nav tabs only on desktop (md+)
        • Bottom tab bar on mobile only
+
+   PATCHES in this regen:
+   ✅ Header: add “Become a Member” next to “Log in”
+   ✅ Avatar picker on Signup + Profile (stored in Supabase user_metadata.avatar_id)
+   ✅ TVOD checkout stays on-site via new SPA route #/checkout (branded shell + embed checkout.html)
+   ✅ LIVE connection hardened (supports CMS endpoint shapes + titleId-only items)
+   ✅ LIVE: Pluto-style guide rows are UNDER player + Now Playing card (image + times)
+   ✅ Home rows: no poster cut-off + wheel-to-scroll + smoother mobile scrolling
+   ✅ Series episodes: thumbnails restored
+   ✅ Back button: series/film drilldowns return to last catalog tab
+   ✅ Player “small → big → small” jump reduced via stable aspect wrapper + contain
+   ✅ Hero per-tab filtering (Movies hero = Movies only, etc.)
+   ✅ Footer black strip full-width
 ============================================================ */
 
 (() => {
   // =========================================================
-  // CONSTANTS
+  // CONSTANTS + STATE
   // =========================================================
   const PROMO_PLAYBACK_ID = "sJQ12hEfeyDCR4gtKbhIXzzGpzHU71BQB8GTIU1pklY";
 
   const DEFAULT_CONFIG = {
     MANIFEST_URL: "https://t6ht6kdwnezp05ut.public.blob.vercel-storage.com/manifest.json",
-    CATALOG_URL_FALLBACK: "https://t6ht6kdwnezp05ut.public.blob.vercel-storage.com/catalog-stable.json",
-
+    CATALOG_URL_FALLBACK: "https://t6ht6kdwnezp05ut.public.blob.vercel-storage.com/catalog.json",
     LOGO_URL: "./WatchVIM_New_OTT_Logo.png",
-
-    THEME: {
-      accent: "#e50914",
-      background: "#0a0a0a",
-      gold: "#d4af37"
-    },
+    THEME: { accent: "#e50914", background: "#0a0a0a", gold: "#d4af37" },
 
     SUPABASE_URL: "https://oxqneksxmwopepchkatv.supabase.co",
     SUPABASE_ANON_KEY:
@@ -57,23 +64,25 @@
     TVOD_API_BASE: "",
     TVOD_CHECKOUT_URL_BASE: "/checkout.html",
 
-    // Global fallback VAST tag (set your GAM tag here OR via config.json)
+    // Optional: CMS publishes Loop Channel JSON endpoint
+    LOOP_CHANNEL_URL: "",
+
+    // Global fallback VAST tag (set GAM tag here OR via config.json)
     VAST_TAG: "",
 
-    // Global Ads Pod
+    // Global Ads Pod (array of {type:"mux", playbackId, label} or {type:"url", src, label})
     GLOBAL_ADS: [],
     PLAY_GLOBAL_ADS_ON_AVOD: false,
     PLAY_GLOBAL_ADS_ON_LIVE: false,
 
     ADS_DEBUG: false,
 
-    AVATAR_BUCKET: "avatars",
-
-    // If your CMS doesn’t provide it, LIVE mid-roll fallback:
+    // LIVE/VOD fallback ad cadence if CMS doesn’t provide it
     LIVE_AD_FREQUENCY_MINS_FALLBACK: 10,
+    AVOD_MIDROLL_EVERY_MINS_FALLBACK: 10,
 
-    // If your CMS doesn’t provide it, VOD repeating mid-roll fallback for AVOD:
-    AVOD_MIDROLL_EVERY_MINS_FALLBACK: 10
+    // PATCH: TV mode should NOT trigger on desktop width anymore.
+    FORCE_TV_MODE: false
   };
 
   let CONFIG = { ...DEFAULT_CONFIG };
@@ -86,12 +95,25 @@
     route: { name: "landing", params: {} },
     session: null,
     user: null,
+
+    // Back-to-catalog helpers
+    lastBrowseTab: "Home",
+    lastBrowseHash: "#/home?tab=Home",
+
+    // UI helpers
+    ui: {
+      authAvatarPick: null,
+      profileAvatarPick: null
+    },
+
     loop: {
+      channel: null,
       queue: [],
       index: 0,
-      lastAdAt: 0,
-      shuffle: true,
-      playingAd: false
+      playingAd: false,
+      adTimer: null,
+      rotateTimer: null,
+      progressTimer: null
     }
   };
 
@@ -107,18 +129,13 @@
     s.textContent = `
       body{
         margin:0;
-        background:#0a0a0a;
+        background:var(--watch-bg,#0a0a0a);
         color:#fff;
         font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       }
 
-      .tile{ width:140px; flex:0 0 auto; }
-      @media(min-width:768px){ .tile{ width:170px; } }
-      .tile-poster{ aspect-ratio:2/3; }
-
       .row-scroll{-ms-overflow-style:none; scrollbar-width:none;}
       .row-scroll::-webkit-scrollbar{display:none;}
-
       .focus-ring{ outline:2px solid var(--watch-accent,#e50914); outline-offset:2px; border-radius:12px; }
 
       .line-clamp-1,.line-clamp-2,.line-clamp-3,.line-clamp-4{
@@ -131,13 +148,127 @@
       .line-clamp-3{-webkit-line-clamp:3;}
       .line-clamp-4{-webkit-line-clamp:4;}
 
-      /* Simple debug chip */
+      /* LIVE (Pluto-style) */
+      .wv-live-rail{ position:relative; }
+      .wv-live-rail .wv-rail-card{ border-radius:24px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.05); }
+      .wv-progress-track{ height:8px; border-radius:999px; background:rgba(255,255,255,.14); overflow:hidden; }
+      .wv-progress-bar{ height:100%; width:0%; background:var(--watch-accent,#e50914); }
+      .wv-guide-scroll{ max-height:540px; overflow:auto; -webkit-overflow-scrolling:touch; }
+
+      /* Hero trailer preview should FILL the hero area (not letterboxed) */
+      .wv-hero-preview{
+        position:absolute; inset:0;
+        width:100%; height:100%;
+        display:block;
+        --media-object-fit: cover;
+        --media-object-position: center;
+      }
+
+      /* =========================
+         SERIES PAGE LAYOUT FIX
+         ========================= */
+      .seriesHero{
+        position:relative;
+        height:320px;
+        background-size:cover;
+        background-position:center;
+      }
+      .seriesHeroScrim{
+        position:absolute; inset:0;
+        background:linear-gradient(to bottom, rgba(0,0,0,.15), rgba(0,0,0,.85));
+      }
+      .seriesHeader{
+        display:flex;
+        gap:22px;
+        padding:28px 28px 18px;
+        margin-top:-70px;
+        background:#0a0a0a;
+        position:relative;
+        z-index:2;
+      }
+      .seriesPoster{
+        width:220px;
+        flex:0 0 220px;
+        border-radius:18px;
+        box-shadow:0 18px 40px rgba(0,0,0,.55);
+        transform:translateY(-18px);
+      }
+      .seriesMeta{
+        min-width:0;
+        padding-top:18px;
+      }
+      .seriesMeta .kicker{
+        letter-spacing:.22em;
+        font-size:12px;
+        opacity:.8;
+        margin-bottom:6px;
+      }
+      .seriesMeta .title{
+        font-size:44px;
+        line-height:1.05;
+        margin:0 0 10px;
+      }
+      .seriesMeta .tagline{
+        opacity:.85;
+        max-width:900px;
+        margin-bottom:14px;
+      }
+      .seasonTabs{
+        margin-top:10px;
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+      }
+      .seriesBody{
+        padding:10px 28px 60px;
+      }
+      @media (max-width: 900px){
+        .seriesHeader{ flex-direction:column; margin-top:-60px; }
+        .seriesPoster{ width:180px; flex-basis:auto; transform:translateY(-10px); }
+        .seriesMeta{ padding-top:0; }
+        .seriesMeta .title{ font-size:34px; }
+      }
+
+      /* Ads debug chip */
       .ads-debug-chip{
         position:fixed; bottom:12px; right:12px; z-index:99999;
         background:rgba(0,0,0,.75); border:1px solid rgba(255,255,255,.2);
         padding:8px 10px; border-radius:12px; font-size:11px; color:#fff;
-        max-width:320px; line-height:1.25;
+        max-width:360px; line-height:1.25;
       }
+
+      /* Simple modal */
+      .wv-modal-backdrop{ position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:18px; }
+      .wv-modal{ width:min(560px, 100%); border-radius:18px; border:1px solid rgba(255,255,255,.12); background:#0b0b0b; box-shadow:0 24px 80px rgba(0,0,0,.55); overflow:hidden; }
+      .wv-modal header{ padding:16px 16px 10px; border-bottom:1px solid rgba(255,255,255,.08); }
+      .wv-modal .body{ padding:14px 16px 16px; }
+      .wv-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#fff; cursor:pointer; }
+      .wv-btn:hover{ background:rgba(255,255,255,.10); }
+      .wv-btn-primary{ background:var(--watch-accent,#e50914); border-color:transparent; font-weight:700; }
+      .wv-btn-primary:hover{ filter:brightness(1.05); }
+      .wv-input{ width:100%; padding:12px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#fff; outline:none; }
+      .wv-input:focus{ border-color:rgba(255,255,255,.25); }
+
+      /* Row scrolling: smoother + works on mousewheel */
+      .row-scroll{ -webkit-overflow-scrolling:touch; scroll-behavior:smooth; padding-bottom:8px; }
+
+      /* Player sizing stability (prevents “small → big → small” jumps) */
+      mux-player, video{ display:block; width:100%; height:100%; }
+      .wv-player-wrap{ position:relative; width:100%; background:#000; border-radius:24px; overflow:hidden; }
+      .wv-player-wrap::before{ content:""; display:block; padding-top:56.25%; } /* 16:9 */
+      .wv-player-inner{ position:absolute; inset:0; }
+
+      /* Footer full-width fallback */
+      .wv-footer, .wv-mobilebar{ width:100%; background:rgba(0,0,0,.95); }
+
+      /* Avatar UI */
+      .wv-avatar{ width:32px; height:32px; border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); }
+      .wv-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+      .wv-avatar-lg{ width:84px; height:84px; border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); }
+      .wv-avatar-lg img{ width:100%; height:100%; object-fit:cover; display:block; }
+      .wv-avatar-grid button{ border-radius:18px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); padding:10px; cursor:pointer; }
+      .wv-avatar-grid button:hover{ background:rgba(255,255,255,.09); }
+      .wv-avatar-grid button.wv-selected{ outline:2px solid var(--watch-accent,#e50914); outline-offset:2px; }
     `;
     document.head.appendChild(s);
   }
@@ -147,12 +278,13 @@
   // =========================================================
   function esc(str = "") {
     return String(str).replace(/[&<>"']/g, (m) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
     }[m]));
+  }
+
+  function numOrNull(x) {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : null;
   }
 
   function toMins(x) {
@@ -181,42 +313,34 @@
   }
 
   function poster(t) {
-    return normalizeMediaUrl(
-      firstUrl(
-        t.posterUrl,
-        t.poster_url,
-        t.appImages?.tvPosterUrl,
-        t.appImages?.mobilePosterUrl,
-        t.appImages?.posterUrl,
-        t.images?.poster,
-        t.images?.posterUrl,
-        t.poster,
-        t.cover,
-        t.thumbnailUrl
-      )
-    );
+    return normalizeMediaUrl(firstUrl(
+      t?.posterUrl, t?.poster_url,
+      t?.appImages?.tvPosterUrl, t?.appImages?.mobilePosterUrl, t?.appImages?.posterUrl,
+      t?.images?.poster, t?.images?.posterUrl,
+      t?.poster, t?.cover, t?.thumbnailUrl
+    ));
   }
 
   function hero(t) {
-    return normalizeMediaUrl(
-      firstUrl(
-        t.featureHeroUrl,
-        t.featuredHeroUrl,
-        t.featureHeroImageUrl,
-        t.featureImageUrl,
-        t.heroUrl,
-        t.hero_url,
-        t.appImages?.tvHeroUrl,
-        t.appImages?.mobileHeroUrl,
-        t.appImages?.heroUrl,
-        t.appImages?.hero,
-        t.images?.hero,
-        t.images?.heroUrl,
-        t.heroImage,
-        t.hero,
-        poster(t)
-      )
-    );
+    return normalizeMediaUrl(firstUrl(
+      t?.featureHeroUrl, t?.featuredHeroUrl, t?.featureHeroImageUrl, t?.featureImageUrl,
+      t?.heroUrl, t?.hero_url,
+      t?.appImages?.tvHeroUrl, t?.appImages?.mobileHeroUrl, t?.appImages?.heroUrl, t?.appImages?.hero,
+      t?.images?.hero, t?.images?.heroUrl,
+      t?.heroImage, t?.hero,
+      poster(t)
+    ));
+  }
+
+  function episodePoster(ep, series = null) {
+    return normalizeMediaUrl(firstUrl(
+      ep?.posterUrl, ep?.poster_url,
+      ep?.thumbnailUrl, ep?.thumbnail_url,
+      ep?.imageUrl, ep?.image_url,
+      ep?.appImages?.tvPosterUrl, ep?.appImages?.mobilePosterUrl, ep?.appImages?.posterUrl, ep?.appImages?.thumbnailUrl,
+      ep?.images?.poster, ep?.images?.posterUrl, ep?.images?.thumbnail, ep?.images?.thumb,
+      series ? poster(series) : ""
+    ));
   }
 
   function typeLabel(type) {
@@ -224,25 +348,21 @@
     return map[type] || type || "Title";
   }
 
-  function muxIdFor(t, kind = "content") {
-    return kind === "trailer" ? t.trailerPlaybackId : t.contentPlaybackId;
-  }
-
+  // PATCH: TV mode should only be true for actual TV devices (or forced).
   function isTV() {
+    if (CONFIG?.FORCE_TV_MODE) return true;
     const ua = navigator.userAgent.toLowerCase();
-    return (
-      ua.includes("aft") ||
-      ua.includes("smarttv") ||
-      ua.includes("tizen") ||
-      ua.includes("webos") ||
-      ua.includes("android tv") ||
-      window.innerWidth >= 1024
-    );
+    return /aft|smarttv|tizen|webos|android tv|hbbtv|netcast/.test(ua);
   }
 
-  function numOrNull(x) {
-    const n = Number(x);
-    return Number.isFinite(n) ? n : null;
+  // PATCH: Mobile detection for bottom tab bar.
+  function isMobile() {
+    return window.matchMedia && window.matchMedia("(max-width: 767px)").matches;
+  }
+
+  function pickFirstString(...vals) {
+    for (const v of vals) if (typeof v === "string" && v.trim()) return v.trim();
+    return "";
   }
 
   function logAds(...args) {
@@ -264,19 +384,111 @@
   }
 
   // =========================================================
-  // TAB FILTERS
+  // AVATARS (preset SVGs stored by avatar_id in Supabase user_metadata)
   // =========================================================
-  const TAB_FILTERS = {
-    Home: () => true,
-    Movies: (t) => t.type === "films" || t.type === "documentaries",
-    Series: (t) => t.type === "series",
-    Shorts: (t) => t.type === "shorts" || (t.runtimeMins && Number(t.runtimeMins) <= 40),
-    Foreign: (t) =>
-      t.type === "foreign" ||
-      (t.genre || []).some((g) => /foreign|international|world/i.test(g)) ||
-      (t.language && !/english/i.test(t.language)),
-    LIVE: () => false
-  };
+  const AVATAR_PRESETS = [
+    "ember", "gold", "neon", "ocean", "violet", "mint", "mono", "sunrise"
+  ];
+
+  function initialsFromString(str) {
+    const s = String(str || "").trim();
+    if (!s) return "WV";
+    const parts = s.split(/[\s.@_-]+/).filter(Boolean);
+    const a = (parts[0] || "W")[0] || "W";
+    const b = (parts[1] || parts[0] || "V")[0] || "V";
+    return (a + b).toUpperCase();
+  }
+
+  function avatarPalette(id) {
+    const pal = {
+      ember:   ["#e50914", "#d4af37", "rgba(0,0,0,.85)"],
+      gold:    ["#d4af37", "#e50914", "rgba(0,0,0,.85)"],
+      neon:    ["#00e5ff", "#e50914", "rgba(0,0,0,.85)"],
+      ocean:   ["#00c6ff", "#0072ff", "rgba(0,0,0,.85)"],
+      violet:  ["#a855f7", "#e50914", "rgba(0,0,0,.85)"],
+      mint:    ["#34d399", "#d4af37", "rgba(0,0,0,.85)"],
+      mono:    ["#ffffff", "#6b7280", "rgba(0,0,0,.90)"],
+      sunrise: ["#fb7185", "#fbbf24", "rgba(0,0,0,.85)"]
+    };
+    return pal[id] || pal.ember;
+  }
+
+  function svgToDataUri(svg) {
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+
+  function avatarSvg(id, seedText) {
+    const [c1, c2, ink] = avatarPalette(id);
+    const initials = initialsFromString(seedText);
+    // Simple geometric + gradient + initials (clean + “premium”)
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="${c1}"/>
+            <stop offset="100%" stop-color="${c2}"/>
+          </linearGradient>
+          <radialGradient id="r" cx="30%" cy="20%" r="90%">
+            <stop offset="0%" stop-color="rgba(255,255,255,.35)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+          </radialGradient>
+          <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="rgba(0,0,0,.35)"/>
+          </filter>
+        </defs>
+
+        <rect width="256" height="256" rx="64" fill="url(#g)"/>
+        <circle cx="80" cy="64" r="120" fill="url(#r)"/>
+        <path d="M-10 200 C 60 160, 120 260, 266 190 L 266 266 L -10 266 Z" fill="rgba(0,0,0,.18)"/>
+        <path d="M0 170 C 90 120, 110 220, 256 150" stroke="rgba(255,255,255,.22)" stroke-width="10" fill="none" stroke-linecap="round"/>
+
+        <g filter="url(#s)">
+          <circle cx="128" cy="128" r="74" fill="${ink}" opacity=".22"/>
+          <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle"
+                font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif"
+                font-size="72" font-weight="900" fill="rgba(255,255,255,.92)" letter-spacing="2">
+            ${initials}
+          </text>
+        </g>
+      </svg>
+    `.trim();
+  }
+
+  function userAvatarId(u) {
+    const um = u?.user_metadata || {};
+    const id = (um.avatar_id || um.avatarId || "").toString().trim();
+    return id && AVATAR_PRESETS.includes(id) ? id : "";
+  }
+
+  function userAvatarUrl(u) {
+    const um = u?.user_metadata || {};
+    const custom = (um.avatar_url || um.avatarUrl || "").toString().trim();
+    if (custom) return normalizeMediaUrl(custom);
+
+    const id = userAvatarId(u) || "ember";
+    const seed = u?.email || um?.full_name || "WatchVIM";
+    return svgToDataUri(avatarSvg(id, seed));
+  }
+
+  function renderAvatarGrid({ selectedId = "", clickFn = "selectAuthAvatar" } = {}) {
+    const safeSelected = (selectedId && AVATAR_PRESETS.includes(selectedId)) ? selectedId : "";
+    const seed = state.user?.email || "WatchVIM";
+    return `
+      <div class="wv-avatar-grid mt-3 grid grid-cols-4 gap-2">
+        ${AVATAR_PRESETS.map((id) => {
+          const uri = svgToDataUri(avatarSvg(id, seed));
+          return `
+            <button class="${id === safeSelected ? "wv-selected" : ""}" type="button" data-avatar="${esc(id)}" onclick="${clickFn}('${esc(id)}')">
+              <div class="wv-avatar mx-auto" style="width:46px;height:46px;">
+                <img src="${esc(uri)}" alt="${esc(id)}"/>
+              </div>
+              <div class="mt-2 text-[10px] text-white/70 uppercase tracking-[0.18em] text-center">${esc(id)}</div>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
 
   // =========================================================
   // SCRIPT LOADER
@@ -292,20 +504,38 @@
     });
   }
 
+  async function ensureMuxPlayerLoaded() {
+    if (customElements.get("mux-player")) return true;
+    try {
+      await loadScript("https://unpkg.com/@mux/mux-player@latest/dist/mux-player.js");
+      return !!customElements.get("mux-player");
+    } catch (e) {
+      console.warn("[WatchVIM] mux-player failed to load", e);
+      return false;
+    }
+  }
+
   // =========================================================
   // CONFIG LOADING
   // =========================================================
   function mergeConfigSafe(base, incoming) {
     const out = { ...base, ...(incoming || {}) };
-    out.THEME = { ...(base.THEME || {}), ...(incoming?.THEME || {}) };
+    out.THEME = { ...(base.THEME || {}), ...((incoming && incoming.THEME) || {}) };
 
     if (!out.SUPABASE_URL) out.SUPABASE_URL = base.SUPABASE_URL;
     if (!out.SUPABASE_ANON_KEY) out.SUPABASE_ANON_KEY = base.SUPABASE_ANON_KEY;
     if (!out.MANIFEST_URL) out.MANIFEST_URL = base.MANIFEST_URL;
     if (!out.CATALOG_URL_FALLBACK) out.CATALOG_URL_FALLBACK = base.CATALOG_URL_FALLBACK;
 
-    // Safety defaults
+    // Ensure VAST_TAG retained
+    if (!out.VAST_TAG) out.VAST_TAG = base.VAST_TAG;
+
     if (!Array.isArray(out.GLOBAL_ADS)) out.GLOBAL_ADS = [];
+
+    // Preserve explicit false
+    if (typeof out.PLAY_GLOBAL_ADS_ON_AVOD !== "boolean") out.PLAY_GLOBAL_ADS_ON_AVOD = !!base.PLAY_GLOBAL_ADS_ON_AVOD;
+    if (typeof out.PLAY_GLOBAL_ADS_ON_LIVE !== "boolean") out.PLAY_GLOBAL_ADS_ON_LIVE = !!base.PLAY_GLOBAL_ADS_ON_LIVE;
+    if (typeof out.ADS_DEBUG !== "boolean") out.ADS_DEBUG = !!base.ADS_DEBUG;
 
     return out;
   }
@@ -357,12 +587,18 @@
         manifest.catalogUrl ||
         directCatalog ||
         CONFIG.CATALOG_URL_FALLBACK;
+      console.log("[WatchVIM] Chosen catalogUrl:", catalogUrl);
 
       if (!catalogUrl) throw new Error("No catalog URL in manifest or fallback config.");
 
       const cRes = await fetch(catalogUrl + "?t=" + Date.now(), { cache: "no-store" });
       if (!cRes.ok) throw new Error("Catalog fetch failed");
-      return await cRes.json();
+      const catalog = await cRes.json();
+
+      console.log("[WatchVIM] loopChannel exists:", !!catalog.loopChannel);
+      console.log("[WatchVIM] loop rotation items:", catalog.loopChannel?.rotationItems?.length || 0);
+
+      return catalog;
     } catch (e) {
       const url = directCatalog || CONFIG.CATALOG_URL_FALLBACK;
       if (!url) throw e;
@@ -372,18 +608,29 @@
     }
   }
 
+  // Robust ID normalization + episode indexing
   function normalizeCatalog(catalog) {
-    const titles = catalog.titles || catalog.publishedTitles || catalog.items || [];
+    const raw = catalog?.titles || catalog?.publishedTitles || catalog?.items || [];
     const byId = new Map();
 
-    titles.forEach((t) => {
-      if (!t || !t.id) return;
-      byId.set(t.id, t);
+    const titles = (Array.isArray(raw) ? raw : [])
+      .map((t) => {
+        if (!t) return null;
+        const id = t.id || t.titleId || t.title_id || t.contentId || t.slug || t.key;
+        if (!id) return null;
+        if (!t.id) t.id = String(id);
+        return t;
+      })
+      .filter(Boolean);
 
-      if (t.type === "series") {
+    titles.forEach((t) => {
+      byId.set(String(t.id), t);
+
+      if (String(t.type).toLowerCase() === "series") {
         (t.seasons || []).forEach((s, si) => {
           (s.episodes || []).forEach((ep, ei) => {
-            if (!ep.id) ep.id = `${t.id}_s${si + 1}e${ei + 1}`;
+            const epId = ep.id || ep.episodeId || ep.contentId || `${t.id}_s${si + 1}e${ei + 1}`;
+            ep.id = String(epId);
             ep.__seriesId = t.id;
             ep.__seasonIndex = si;
             ep.__epIndex = ei;
@@ -396,14 +643,258 @@
     return { titles, byId };
   }
 
+  // =========================================================
+  // HERO MANAGER (CMS) CONNECTOR
+  // =========================================================
+  function getHeroManagerConfig() {
+    const c = state.catalog || {};
+    const hm =
+      c?.home?.heroManager ||
+      c?.heroManager ||
+      c?.homepage?.heroManager ||
+      c?.home?.hero_manager ||
+      c?.hero_manager ||
+      null;
+
+    return hm && typeof hm === "object" ? hm : null;
+  }
+
+  function resolveHeroManagerItems(hm) {
+    const slides = Array.isArray(hm?.slides) ? hm.slides : [];
+    const out = [];
+    const seen = new Set();
+
+    for (const sl of slides) {
+      if (!sl) continue;
+
+      const id = sl.titleId || sl.title_id || sl.id || sl.refId || sl.contentId || sl.slug || sl.key || "";
+      if (!id) continue;
+
+      const base = state.byId.get(String(id)) || null;
+      if (!base) continue;
+
+      const merged = { ...base };
+
+      merged.__hero_slide = true;
+      merged.__hero_webHeroUrl = normalizeMediaUrl(firstUrl(sl.webHeroUrl, sl.heroUrl, sl.hero, sl.webHero));
+      merged.__hero_titleOverride = (sl.titleOverride || sl.title_override || "").trim();
+      merged.__hero_synopsisOverride = (sl.synopsisOverride || sl.synopsis_override || "").trim();
+      merged.__hero_titleLogoUrl = normalizeMediaUrl(firstUrl(sl.titleLogoUrl, sl.title_logo_url, sl.logoUrl, sl.logo));
+      merged.__hero_trailerPlaybackId = (sl.trailerPlaybackId || sl.trailer_playback_id || "").trim();
+
+      if (merged.__hero_trailerPlaybackId) merged.trailerPlaybackId = merged.__hero_trailerPlaybackId;
+
+      if (seen.has(merged.id)) continue;
+      seen.add(merged.id);
+      out.push(merged);
+    }
+
+    return out;
+  }
+
+  function heroImageForHeroItem(t) {
+    return normalizeMediaUrl(firstUrl(t?.__hero_webHeroUrl, hero(t)));
+  }
+  function heroTitleForHeroItem(t) {
+    return (t?.__hero_titleOverride || "").trim() || t?.title || "Untitled";
+  }
+  function heroSynopsisForHeroItem(t) {
+    return (t?.__hero_synopsisOverride || "").trim() || t?.synopsis || t?.description || "";
+  }
+  function heroTrailerIdForHeroItem(t) {
+    return (t?.__hero_trailerPlaybackId || "").trim() || t?.trailerPlaybackId || "";
+  }
+
+  function featuredItems() {
+    const c = state.catalog || {};
+
+    const hm = getHeroManagerConfig();
+    const hmMode = String(hm?.mode || "").toLowerCase();
+    if (hm && hmMode === "custom") {
+      const itemsFromHM = resolveHeroManagerItems(hm);
+      if (itemsFromHM.length) return itemsFromHM;
+    }
+
+    const direct =
+      c.heroCarousel?.items || c.heroCarousel ||
+      c.featureCarousel?.items || c.featureCarousel ||
+      c.featuredCarousel?.items || c.featuredCarousel ||
+      c.heroTitles || c.heroItems || c.featuredTitles || c.featured ||
+      c.featuredItems || c.featuredList ||
+      c.homepage?.hero || c.homepage?.featured ||
+      null;
+
+    const resolveRef = (it) => {
+      if (!it) return null;
+      if (typeof it === "string") return state.byId.get(it) || null;
+
+      const id =
+        it.id || it.refId || it.titleId || it.title_id || it.contentId ||
+        it?.ref?.id || it?.ref?.refId ||
+        it?.title?.id || it?.title?.refId ||
+        it?.itemId || it?.slug || it?.key || null;
+
+      if (id) return state.byId.get(String(id)) || it;
+      if (it.refType && it.refId) return state.byId.get(String(it.refId)) || it;
+      return it?.id ? it : null;
+    };
+
+    let items = [];
+    if (Array.isArray(direct) && direct.length) items = direct.map(resolveRef).filter(Boolean);
+
+    if (!items.length) {
+      items = state.titles.filter((t) =>
+        t.isHero === true ||
+        t.isFeatured === true ||
+        t.featured === true ||
+        t.hero === true ||
+        t.feature === true ||
+        (Array.isArray(t.tags) && t.tags.some((tag) => /hero|featured|feature/i.test(tag))) ||
+        (Array.isArray(t.genre) && t.genre.some((g) => /hero|featured|feature/i.test(g)))
+      );
+    }
+
+    const seen = new Set();
+    return items.filter((t) => {
+      const id = t?.id;
+      if (!id) return false;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+
+  function sortFeatured(items) {
+    return items.slice().sort((a, b) => {
+      const ao = a.heroOrder ?? a.featuredOrder ?? a.featuredRank ?? a.rank ?? a.order ?? 9999;
+      const bo = b.heroOrder ?? b.featuredOrder ?? b.featuredRank ?? b.rank ?? b.order ?? 9999;
+      return ao - bo;
+    });
+  }
+
+  // =========================================================
+  // LIVE: hydrate loopChannel from CMS endpoint (optional)
+  // =========================================================
+  async function hydrateLoopChannelFromCMS() {
+    try {
+      const c = state.catalog || {};
+
+      // Accept MANY config/catalog shapes (CMS portal “Loop Channel”)
+      const rawUrl =
+        CONFIG.LOOP_CHANNEL_URL ||
+        CONFIG.LIVE_CHANNEL_URL ||
+        c.loopChannelUrl || c.loop_channel_url ||
+        c.liveChannelUrl || c.live_channel_url ||
+        c.loopChannel?.url || c.loopChannel?.endpoint || c.loopChannel?.endpointUrl ||
+        c.liveChannel?.url || c.liveChannel?.endpoint || c.liveChannel?.endpointUrl ||
+        c.home?.loopChannelUrl || c.home?.loop_channel_url ||
+        c.home?.liveChannelUrl || c.home?.live_channel_url ||
+        c.home?.loopChannel?.url || c.home?.loopChannel?.endpoint ||
+        c.home?.liveChannel?.url || c.home?.liveChannel?.endpoint ||
+        "";
+
+      const url = normalizeMediaUrl(rawUrl);
+      if (!url) return;
+
+      const u = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+      const res = await fetch(u, { cache: "no-store" });
+      if (!res.ok) return;
+
+      const json = await res.json();
+
+      const pickChannelObj = (obj) => {
+        if (!obj || typeof obj !== "object") return null;
+        return (
+          obj.loopChannel || obj.liveChannel || obj.channel ||
+          obj.loop_channel || obj.live_channel ||
+          null
+        );
+      };
+
+      let ch = null;
+
+      // 1) Raw array → queue
+      if (Array.isArray(json)) {
+        ch = { queue: json };
+      } else if (json && typeof json === "object") {
+        // 2) channel object possibly nested
+        ch =
+          pickChannelObj(json) ||
+          pickChannelObj(json.data) ||
+          pickChannelObj(json.result) ||
+          pickChannelObj(json.payload) ||
+          null;
+
+        // 3) queue array possibly nested (common CMS shapes)
+        const q =
+          (Array.isArray(json.queue) && json.queue) ||
+          (Array.isArray(json.items) && json.items) ||
+          (Array.isArray(json.programs) && json.programs) ||
+          (Array.isArray(json.playlist) && json.playlist) ||
+          (Array.isArray(json.slots) && json.slots) ||
+          (Array.isArray(json.data?.queue) && json.data.queue) ||
+          (Array.isArray(json.data?.items) && json.data.items) ||
+          (Array.isArray(json.data?.programs) && json.data.programs) ||
+          (Array.isArray(json.result?.queue) && json.result.queue) ||
+          (Array.isArray(json.result?.items) && json.result.items) ||
+          null;
+
+        if (!ch && q) ch = { queue: q };
+
+        // 4) If ch exists but queue is stored under other names
+        if (ch && typeof ch === "object" && !Array.isArray(ch)) {
+          if (!Array.isArray(ch.queue)) {
+            const q2 =
+              (Array.isArray(ch.items) && ch.items) ||
+              (Array.isArray(ch.queueItems) && ch.queueItems) ||
+              (Array.isArray(ch.programs) && ch.programs) ||
+              (Array.isArray(ch.playlist) && ch.playlist) ||
+              (Array.isArray(ch.slots) && ch.slots) ||
+              null;
+            if (q2) ch.queue = q2;
+          }
+        }
+      }
+
+      if (!ch) return;
+      if (Array.isArray(ch)) ch = { queue: ch };
+      if (!Array.isArray(ch.queue)) ch.queue = [];
+
+      // Persist on catalog so initLoopQueue can read it
+      state.catalog.loopChannel = ch;
+    } catch (e) {
+      console.warn("[WatchVIM] hydrateLoopChannelFromCMS failed:", e);
+    }
+  }
+
   async function loadData() {
-    renderLoading();
+    renderLoading("Loading catalog…");
     state.catalog = await fetchCatalogFromManifest();
+
+    // ✅ LIVE connection from config/catalog endpoint
+    await hydrateLoopChannelFromCMS();
+
     const norm = normalizeCatalog(state.catalog);
     state.titles = norm.titles;
     state.byId = norm.byId;
+
     initLoopQueue();
   }
+
+  // =========================================================
+  // TAB FILTERS
+  // =========================================================
+  const TAB_FILTERS = {
+    Home: () => true,
+    Movies: (t) => t.type === "films" || t.type === "documentaries",
+    Series: (t) => t.type === "series",
+    Shorts: (t) => t.type === "shorts" || (t.runtimeMins && Number(t.runtimeMins) <= 40),
+    Foreign: (t) =>
+      t.type === "foreign" ||
+      (t.genre || []).some((g) => /foreign|international|world/i.test(g)) ||
+      (t.language && !/english/i.test(t.language)),
+    LIVE: () => false
+  };
 
   // =========================================================
   // SUPABASE (Optional Auth)
@@ -445,7 +936,6 @@
         state.session = null;
         state.user = null;
       }
-
       await refreshUserFromServer();
       syncSvodFlagToLocalStorage();
       render();
@@ -475,33 +965,16 @@
     const am = u?.app_metadata || {};
 
     const plan =
-      um.membership_plan ||
-      um.subscription_plan ||
-      um.plan ||
-      um.tier ||
-      am.membership_plan ||
-      am.subscription_plan ||
-      am.plan ||
-      am.tier ||
-      null;
+      um.membership_plan || um.subscription_plan || um.plan || um.tier ||
+      am.membership_plan || am.subscription_plan || am.plan || am.tier || null;
 
     const status =
-      um.membership_status ||
-      um.subscription_status ||
-      um.status ||
-      am.membership_status ||
-      am.subscription_status ||
-      am.status ||
-      null;
+      um.membership_status || um.subscription_status || um.status ||
+      am.membership_status || am.subscription_status || am.status || null;
 
     const expiresAt =
-      um.membership_expires_at ||
-      um.current_period_end ||
-      um.expires_at ||
-      am.membership_expires_at ||
-      am.current_period_end ||
-      am.expires_at ||
-      null;
+      um.membership_expires_at || um.current_period_end || um.expires_at ||
+      am.membership_expires_at || am.current_period_end || am.expires_at || null;
 
     return { plan, status, expiresAt };
   }
@@ -592,7 +1065,7 @@
     navTo("#/home");
   }
 
-  async function signUp(email, password, fullName, membershipPlan) {
+  async function signUp(email, password, fullName, membershipPlan, avatarId) {
     const client = await initSupabaseIfPossible();
     if (!client) {
       const error = new Error("Auth not configured.");
@@ -600,13 +1073,16 @@
       return { error };
     }
 
+    const safeAvatar = (avatarId && AVATAR_PRESETS.includes(avatarId)) ? avatarId : "ember";
+
     const { data, error } = await client.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName || "",
-          membership_plan: membershipPlan || "tvod-only"
+          membership_plan: membershipPlan || "tvod-only",
+          avatar_id: safeAvatar
         },
         emailRedirectTo: window.location.origin + "/#/login?mode=login"
       }
@@ -619,16 +1095,32 @@
 
     await refreshUserFromServer();
     syncSvodFlagToLocalStorage();
-
     return { data };
   }
 
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
+    try { localStorage.setItem("watchvim_svod_active", "false"); } catch (_) {}
+    navTo("#/home");
+  }
+
+  async function updateProfileAvatar(avatarId) {
+    const client = await initSupabaseIfPossible();
+    if (!client) return alert("Auth not configured.");
+    const safeAvatar = (avatarId && AVATAR_PRESETS.includes(avatarId)) ? avatarId : "ember";
+
     try {
-      localStorage.setItem("watchvim_svod_active", "false");
-    } catch (_) {}
+      const { error } = await client.auth.updateUser({
+        data: { avatar_id: safeAvatar }
+      });
+      if (error) throw error;
+
+      await refreshUserFromServer();
+      render();
+    } catch (e) {
+      alert(e?.message || "Failed to update avatar.");
+    }
   }
 
   // =========================================================
@@ -645,7 +1137,11 @@
 
     if (parts[0] === "home") return { name: "home", params: { tab: query.tab || null } };
     if (parts[0] === "title" && parts[1]) return { name: "title", params: { id: parts[1] } };
-    if (parts[0] === "series" && parts[1]) return { name: "series", params: { id: parts[1] } };
+
+    // series supports ?season=0 toggle
+    if (parts[0] === "series" && parts[1]) {
+      return { name: "series", params: { id: parts[1], season: query.season ?? null } };
+    }
 
     if (parts[0] === "episode" && parts[1] && parts[2] && parts[3]) {
       return {
@@ -659,99 +1155,36 @@
       };
     }
 
-    if (parts[0] === "watch" && parts[1]) {
-      return { name: "watch", params: { id: parts[1], kind: query.kind || "content" } };
-    }
-
+    if (parts[0] === "watch" && parts[1]) return { name: "watch", params: { id: parts[1], kind: query.kind || "content" } };
     if (parts[0] === "loop") return { name: "loop", params: {} };
     if (parts[0] === "search") return { name: "search", params: {} };
     if (parts[0] === "login") return { name: "login", params: { mode: query.mode || "login" } };
     if (parts[0] === "profile") return { name: "profile", params: {} };
 
+    // ✅ NEW: in-app branded checkout (keeps user on-site)
+    if (parts[0] === "checkout") return { name: "checkout", params: { titleId: query.titleId || parts[1] || "" } };
+
     return { name: "home", params: { tab: query.tab || null } };
   }
 
-  function navTo(hash) {
-    location.hash = hash;
-  }
-  window.addEventListener("hashchange", render);
+  function navTo(hash) { location.hash = hash; }
+  window.addEventListener("hashchange", () => render());
 
-  // =========================================================
-  // FEATURED + HERO
-  // =========================================================
-  function featuredItems() {
-    const c = state.catalog || {};
-    const direct =
-      c.heroCarousel?.items ||
-      c.heroCarousel ||
-      c.featureCarousel?.items ||
-      c.featureCarousel ||
-      c.featuredCarousel?.items ||
-      c.featuredCarousel ||
-      c.heroTitles ||
-      c.heroItems ||
-      c.featuredTitles ||
-      c.featured ||
-      c.featuredItems ||
-      c.featuredList ||
-      c.homepage?.hero ||
-      c.homepage?.featured ||
-      null;
-
-    const resolveRef = (it) => {
-      if (!it) return null;
-      if (typeof it === "string") return state.byId.get(it) || null;
-
-      const id =
-        it.id ||
-        it.refId ||
-        it.titleId ||
-        it.contentId ||
-        it?.ref?.id ||
-        it?.ref?.refId ||
-        it?.title?.id ||
-        it?.title?.refId ||
-        it?.itemId ||
-        null;
-
-      if (id) return state.byId.get(String(id)) || it;
-      if (it.refType && it.refId) return state.byId.get(String(it.refId)) || it;
-
-      return it?.id ? it : null;
-    };
-
-    let items = [];
-    if (Array.isArray(direct) && direct.length) items = direct.map(resolveRef).filter(Boolean);
-
-    if (!items.length) {
-      items = state.titles.filter(
-        (t) =>
-          t.isHero === true ||
-          t.isFeatured === true ||
-          t.featured === true ||
-          t.hero === true ||
-          t.feature === true ||
-          (Array.isArray(t.tags) && t.tags.some((tag) => /hero|featured|feature/i.test(tag))) ||
-          (Array.isArray(t.genre) && t.genre.some((g) => /hero|featured|feature/i.test(g)))
-      );
-    }
-
-    const seen = new Set();
-    return items.filter((t) => {
-      const id = t?.id;
-      if (!id) return false;
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
+  function rememberBrowseLocation() {
+    state.lastBrowseTab = state.activeTab || "Home";
+    state.lastBrowseHash = location.hash || `#/home?tab=${encodeURIComponent(state.lastBrowseTab)}`;
   }
 
-  function sortFeatured(items) {
-    return items.slice().sort((a, b) => {
-      const ao = a.heroOrder ?? a.featuredOrder ?? a.featuredRank ?? a.rank ?? a.order ?? 9999;
-      const bo = b.heroOrder ?? b.featuredOrder ?? b.featuredRank ?? b.rank ?? b.order ?? 9999;
-      return ao - bo;
-    });
+  function goBackToCatalog() {
+    const fallback = `#/home?tab=${encodeURIComponent(state.lastBrowseTab || "Home")}`;
+    navTo(state.lastBrowseHash || fallback);
+  }
+
+  function openDetails(id, type) {
+    rememberBrowseLocation();
+    const t = String(type || "").toLowerCase();
+    if (t === "series") navTo(`#/series/${encodeURIComponent(id)}`);
+    else navTo(`#/title/${encodeURIComponent(id)}`);
   }
 
   // =========================================================
@@ -760,7 +1193,6 @@
   const ACCESS = Object.freeze({ AVOD: "AVOD", SVOD: "SVOD", TVOD: "TVOD", FREE: "FREE" });
 
   function isAvodTitle(t) {
-    // Robust across schemas (this is important)
     const monet = t?.monetization || {};
     return !!(
       monet.avod ||
@@ -806,9 +1238,9 @@
     const tvod = monet?.tvod || {};
     const isAVOD = isAvodTitle(t);
     const isSVOD = isSvodTitle(t);
-    const hasTVOD = !!tvod.enabled || hasTvod(t);
+    const hasTVODFlag = !!tvod.enabled || hasTvod(t);
 
-    if (!isAVOD && !isSVOD && !hasTVOD) return { allowed: true, adMode: "none" };
+    if (!isAVOD && !isSVOD && !hasTVODFlag) return { allowed: true, adMode: "none" };
 
     if (isAVOD) {
       if (isSVOD && isActiveSvodMember()) return { allowed: true, adMode: "none" };
@@ -818,38 +1250,67 @@
     if (isSVOD) {
       if (!state.user) {
         return {
-          allowed: false,
-          adMode: "none",
-          reason: "login",
-          message:
-            "This title is available with a WatchVIM membership. Please log in or create an account to continue."
+          allowed: false, adMode: "none", reason: "login",
+          message: "This title is available with a WatchVIM membership. Please log in or create an account to continue."
         };
       }
       if (!isActiveSvodMember()) {
         return {
-          allowed: false,
-          adMode: "none",
-          reason: "upgrade",
+          allowed: false, adMode: "none", reason: "upgrade",
           message: "Your account does not have an active streaming membership. Upgrade your plan to watch this title."
         };
       }
       return { allowed: true, adMode: "none" };
     }
 
-    if (hasTVOD) {
-      if (!state.user) {
-        return { allowed: false, adMode: "none", reason: "login", message: "Please log in to rent or buy this title." };
-      }
+    if (hasTVODFlag) {
+      if (!state.user) return { allowed: false, adMode: "none", reason: "login", message: "Please log in to rent or buy this title." };
       if (isTVODUnlockedForTitle(t)) return { allowed: true, adMode: "none" };
       return {
-        allowed: false,
-        adMode: "none",
-        reason: "tvod",
+        allowed: false, adMode: "none", reason: "tvod",
         message: "This title is available as a rental or purchase. Rent or buy it to unlock playback."
       };
     }
 
     return { allowed: true, adMode: "none" };
+  }
+
+  function showPaywallModal({ title = "Restricted", message = "", actions = [] } = {}) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "wv-modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="wv-modal">
+        <header>
+          <div style="font-weight:800;font-size:16px;">${esc(title)}</div>
+          <div style="opacity:.7;font-size:12px;margin-top:4px;">${esc(message)}</div>
+        </header>
+        <div class="body">
+          <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;">
+            ${actions.map((a, i) => `
+              <button class="wv-btn ${a.primary ? "wv-btn-primary" : ""}" data-act="${i}">${esc(a.label || "OK")}</button>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const close = () => { try { backdrop.remove(); } catch (_) {} };
+
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) close();
+    });
+
+    backdrop.querySelectorAll("[data-act]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.getAttribute("data-act"));
+        const act = actions[idx];
+        try { act?.onClick?.(); } catch (_) {}
+        close();
+      });
+    });
+
+    return close;
   }
 
   // =========================================================
@@ -876,71 +1337,43 @@
     if (!container) return null;
     const mux = container.querySelector("mux-player");
     if (mux) {
-      try {
-        const v = mux.shadowRoot?.querySelector("video");
-        if (v) return v;
-      } catch (_) {}
-      // Some mux-player builds expose .media
-      try {
-        if (mux.media) return mux.media;
-      } catch (_) {}
+      try { const v = mux.shadowRoot?.querySelector("video"); if (v) return v; } catch (_) {}
+      try { if (mux.media) return mux.media; } catch (_) {}
     }
     return container.querySelector("video") || null;
   }
 
-function pauseContentAudio(containerEl) {
-  const mux = containerEl?.querySelector?.("mux-player") || null;
-  const video = findVideoInContainer(containerEl);
+  function pauseContentAudio(containerEl) {
+    const mux = containerEl?.querySelector?.("mux-player") || null;
+    const video = findVideoInContainer(containerEl);
 
-  const snap = {
-    hadMux: !!mux,
-    hadVideo: !!video,
-    wasPaused: true,
-    muted: null,
-    volume: null
-  };
+    const snap = { wasPaused: true, muted: null, volume: null };
 
-  // Pause mux-player if possible
-  try {
-    if (mux && typeof mux.pause === "function") mux.pause();
-  } catch (_) {}
+    try { if (mux && typeof mux.pause === "function") mux.pause(); } catch (_) {}
 
-  // Pause the underlying <video> and mute it hard
-  if (video) {
-    try { snap.wasPaused = !!video.paused; } catch (_) {}
-    try { snap.muted = video.muted; } catch (_) {}
-    try { snap.volume = video.volume; } catch (_) {}
+    if (video) {
+      try { snap.wasPaused = !!video.paused; } catch (_) {}
+      try { snap.muted = video.muted; } catch (_) {}
+      try { snap.volume = video.volume; } catch (_) {}
+      try { video.muted = true; } catch (_) {}
+      try { video.volume = 0; } catch (_) {}
+      try { video.pause(); } catch (_) {}
+    }
 
-    try { video.muted = true; } catch (_) {}
-    try { video.volume = 0; } catch (_) {}
-    try { video.pause(); } catch (_) {}
-  }
+    return function restore() {
+      const mux2 = containerEl?.querySelector?.("mux-player") || null;
+      const v2 = findVideoInContainer(containerEl);
 
-  // Restore function
-  return function restore() {
-    const mux2 = containerEl?.querySelector?.("mux-player") || null;
-    const v2 = findVideoInContainer(containerEl);
-
-    if (v2) {
-      try { if (snap.muted !== null) v2.muted = snap.muted; } catch (_) {}
-      try { if (snap.volume !== null) v2.volume = snap.volume; } catch (_) {}
-
-      // Only resume if it was playing before
-      if (snap.wasPaused === false) {
-        try { v2.play().catch(() => {}); } catch (_) {}
+      if (v2) {
+        try { if (snap.muted !== null) v2.muted = snap.muted; } catch (_) {}
+        try { if (snap.volume !== null) v2.volume = snap.volume; } catch (_) {}
+        if (snap.wasPaused === false) { try { v2.play().catch(() => {}); } catch (_) {} }
       }
-    }
 
-    // Resume mux-player too (some builds prefer this)
-    if (mux2 && snap.wasPaused === false && typeof mux2.play === "function") {
-      try { mux2.play().catch(() => {}); } catch (_) {}
-    }
-  };
-}
-
-  function pickFirstString(...vals) {
-    for (const v of vals) if (typeof v === "string" && v.trim()) return v.trim();
-    return "";
+      if (mux2 && snap.wasPaused === false && typeof mux2.play === "function") {
+        try { mux2.play().catch(() => {}); } catch (_) {}
+      }
+    };
   }
 
   function getCatalogAdvertising() {
@@ -962,37 +1395,19 @@ function pauseContentAudio(containerEl) {
     const globalAdv = getCatalogAdvertising();
 
     const preTag = pickFirstString(
-      adv.preRollVastTag,
-      adv.preRollTag,
-      adv.prerollTag,
-      adv.preroll_vast,
-      base.preRollVastTag,
-      base.preRollTag,
-      base.vastTag,
-      base.vast,
-      globalAdv.preRollVastTag,
-      globalAdv.preRollTag,
-      globalAdv.prerollTag,
-      globalAdv.vastTag,
-      globalAdv.vast,
+      adv.preRollVastTag, adv.preRollTag, adv.prerollTag, adv.preroll_vast,
+      base.preRollVastTag, base.preRollTag, base.vastTag, base.vast,
+      globalAdv.preRollVastTag, globalAdv.preRollTag, globalAdv.prerollTag, globalAdv.vastTag, globalAdv.vast,
       CONFIG.VAST_TAG
     );
 
     const midTag = pickFirstString(
-      adv.midRollVastTag,
-      adv.midRollTag,
-      adv.midrollTag,
-      adv.midroll_vast,
-      base.midRollVastTag,
-      base.midRollTag,
-      globalAdv.midRollVastTag,
-      globalAdv.midRollVastTag,
-      globalAdv.midRollTag,
-      globalAdv.midrollTag,
-      CONFIG.VAST_TAG // if you want midroll to use same tag, this keeps it alive
+      adv.midRollVastTag, adv.midRollTag, adv.midrollTag, adv.midroll_vast,
+      base.midRollVastTag, base.midRollTag,
+      globalAdv.midRollVastTag, globalAdv.midRollTag, globalAdv.midrollTag,
+      CONFIG.VAST_TAG
     );
 
-    // repeating mid-roll interval minutes (supports multiple schema names)
     const midEveryMins =
       numOrNull(adv.midRollEveryMins) ??
       numOrNull(adv.midrollEveryMins) ??
@@ -1002,7 +1417,6 @@ function pauseContentAudio(containerEl) {
       numOrNull(globalAdv.midRollIntervalMins) ??
       null;
 
-    // fallback: midpoint single shot if interval not provided
     const runtimeMins = Number(base.runtimeMins || base.runtime || 0);
     const midSecondsExplicit = Number(adv.midRollTimeSec ?? adv.midrollTimeSec ?? NaN);
     const midMinutesExplicit = Number(adv.midRollTimeMins ?? adv.midrollTimeMins ?? NaN);
@@ -1020,149 +1434,150 @@ function pauseContentAudio(containerEl) {
 
     if (!preTag && !midTag) return null;
 
-    return {
-      preTag,
-      midTag,
-      midSeconds,
-      midEveryMins: midEveryMins || null,
-      midDurationSec
-    };
+    return { preTag, midTag, midSeconds, midEveryMins: midEveryMins || null, midDurationSec };
   }
 
-  function adConfigForTitle(t, adMode = "none") {
-    return buildAdConfig(t, { forceAvod: adMode === "avod" });
-  }
-
-  function adConfigForEpisode(series, ep, adMode = "none") {
-    const monet = ep?.monetization || series?.monetization || {};
-    const base = {
-      ...(ep || series),
-      monetization: monet,
-      runtimeMins: ep?.runtimeMins || series?.runtimeMins,
-      advertising: ep?.advertising || series?.advertising
-    };
-    return buildAdConfig(base, { forceAvod: adMode === "avod" });
-  }
-
-  // ---------- Global Ads Pod (mux/url) ----------
+  // ---------- Global Ads Pod ----------
   function makeAdOverlay(mountEl = null) {
-  const overlay = document.createElement("div");
+    const overlay = document.createElement("div");
+    const isInPlayer = !!mountEl;
 
-  const isInPlayer = !!mountEl;
-  if (isInPlayer) {
-    ensureRelativePosition(mountEl);
-    overlay.className = "wv-ad-overlay absolute inset-0 z-[9999] bg-black flex items-center justify-center";
-  } else {
-    overlay.className = "wv-ad-overlay fixed inset-0 z-[9999] bg-black flex items-center justify-center";
+    if (isInPlayer) {
+      ensureRelativePosition(mountEl);
+      overlay.className = "wv-ad-overlay absolute inset-0 z-[9999] bg-black flex items-center justify-center";
+    } else {
+      overlay.className = "wv-ad-overlay fixed inset-0 z-[9999] bg-black flex items-center justify-center";
+    }
+
+    overlay.innerHTML = `
+      <div class="w-full h-full flex flex-col">
+        <div class="flex-1 relative" id="ad-stage"></div>
+        <div class="p-3 text-center text-xs text-white/70" id="ad-label"></div>
+      </div>
+    `;
+
+    (mountEl || document.body).appendChild(overlay);
+
+    return {
+      overlay,
+      stage: overlay.querySelector("#ad-stage"),
+      label: overlay.querySelector("#ad-label"),
+      destroy() { try { overlay.remove(); } catch (_) {} }
+    };
   }
 
-  overlay.innerHTML = `
-    <div class="w-full h-full flex flex-col">
-      <div class="flex-1 relative" id="ad-stage"></div>
-      <div class="p-3 text-center text-xs text-white/70" id="ad-label"></div>
-    </div>
-  `;
+  async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
+    if (!ads?.length) return;
 
-  (mountEl || document.body).appendChild(overlay);
+    const ui = makeAdOverlay(mountEl);
 
-  return {
-    overlay,
-    stage: overlay.querySelector("#ad-stage"),
-    label: overlay.querySelector("#ad-label"),
-    destroy() { try { overlay.remove(); } catch (_) {} }
-  };
-}
+    const playOne = (ad) =>
+      new Promise((resolve) => {
+        ui.label.textContent = ad?.label ? `Ad: ${ad.label}` : "Advertisement";
+        ui.stage.innerHTML = "";
 
-async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
-  if (!ads?.length) return;
+        let el;
 
-  const ui = makeAdOverlay(mountEl);
-
-  const playOne = (ad) =>
-    new Promise((resolve) => {
-      ui.label.textContent = ad?.label ? `Ad: ${ad.label}` : "Advertisement";
-      ui.stage.innerHTML = "";
-
-      let el;
-
-      // mux ad
-      if (ad.type === "mux" && ad.playbackId) {
-        el = document.createElement("mux-player");
-        el.setAttribute("playback-id", ad.playbackId);
-        el.setAttribute("stream-type", "on-demand");
-        el.setAttribute("playsinline", "");
-        el.setAttribute("autoplay", "");
-        el.setAttribute("muted", "");
-        el.style.width = "100%";
-        el.style.height = "100%";
-        el.style.objectFit = "contain";
-      }
-      // url ad
-      else if (ad.type === "url" && ad.src) {
-        el = document.createElement("video");
-        el.src = ad.src;
-        el.autoplay = true;
-        el.muted = true;
-        el.playsInline = true;
-        el.controls = false;
-        el.style.width = "100%";
-        el.style.height = "100%";
-        el.style.objectFit = "contain";
-      } else {
-        resolve();
-        return;
-      }
-
-      ui.stage.appendChild(el);
-
-      const done = () => resolve();
-      el.addEventListener("ended", done, { once: true });
-      el.addEventListener("error", done, { once: true });
-
-      // failsafe
-      setTimeout(done, 45_000);
-
-      const tryPlay = async () => {
-        try {
-          if (typeof el.play === "function") await el.play();
-        } catch {
-          ui.label.textContent = "Tap to play ad…";
-          ui.overlay.addEventListener(
-            "click",
-            async () => {
-              try {
-                ui.label.textContent = ad?.label ? `Ad: ${ad.label}` : "Advertisement";
-                if (typeof el.play === "function") await el.play();
-              } catch {}
-            },
-            { once: true }
-          );
+        if (ad.type === "mux" && ad.playbackId) {
+          el = document.createElement("mux-player");
+          el.setAttribute("playback-id", ad.playbackId);
+          el.setAttribute("stream-type", "on-demand");
+          el.setAttribute("playsinline", "");
+          el.setAttribute("autoplay", "");
+          el.setAttribute("muted", "");
+          el.style.width = "100%";
+          el.style.height = "100%";
+          el.style.setProperty("--media-object-fit", "contain");
+        } else if (ad.type === "url" && ad.src) {
+          el = document.createElement("video");
+          el.src = ad.src;
+          el.autoplay = true;
+          el.muted = true;
+          el.playsInline = true;
+          el.controls = false;
+          el.style.width = "100%";
+          el.style.height = "100%";
+          el.style.objectFit = "contain";
+        } else {
+          resolve();
+          return;
         }
-      };
 
-      tryPlay();
-    });
+        ui.stage.appendChild(el);
 
-  try {
-    for (const ad of ads) await playOne(ad);
-  } finally {
-    ui.destroy();
+        const done = () => resolve();
+        el.addEventListener("ended", done, { once: true });
+        el.addEventListener("error", done, { once: true });
+
+        setTimeout(done, 45_000);
+
+        const tryPlay = async () => {
+          try {
+            if (typeof el.play === "function") await el.play();
+          } catch {
+            ui.label.textContent = "Tap to play ad…";
+            ui.overlay.addEventListener(
+              "click",
+              async () => {
+                try {
+                  ui.label.textContent = ad?.label ? `Ad: ${ad.label}` : "Advertisement";
+                  if (typeof el.play === "function") await el.play();
+                } catch {}
+              },
+              { once: true }
+            );
+          }
+        };
+
+        tryPlay();
+      });
+
+    try {
+      for (const ad of ads) await playOne(ad);
+    } finally {
+      ui.destroy();
+    }
   }
-}
 
-  // ---------- Global Ads + VAST orchestration ----------
-   // ---------- IMA VAST runner ----------
+  // ---------- IMA VAST runner ----------
+  function removeTapToPlay(containerEl) {
+    if (!containerEl) return;
+    containerEl.querySelectorAll(".wv-tap-to-play").forEach((x) => x.remove());
+  }
+
+  function addTapToPlayFallback(containerEl) {
+    if (!containerEl) return;
+    if (containerEl.querySelector(".wv-ad-overlay")) return;
+
+    const muxEl = containerEl.querySelector("mux-player");
+    const vid = findVideoInContainer(containerEl);
+    if (!muxEl && !vid) return;
+
+    removeTapToPlay(containerEl);
+
+    const btn = document.createElement("button");
+    btn.className =
+      "wv-tap-to-play absolute inset-x-0 bottom-6 mx-auto w-fit px-4 py-2 rounded-full text-white text-sm z-[10000]";
+    btn.style.background = "var(--watch-accent,#e50914)";
+    btn.textContent = "Tap to Play";
+    containerEl.appendChild(btn);
+
+    btn.addEventListener("click", async () => {
+      try {
+        const v = findVideoInContainer(containerEl);
+        if (v?.play) await v.play();
+      } catch (_) {}
+      btn.remove();
+    });
+  }
+
   async function runVastAd(vastTag, containerEl, { onBeforeAd, onComplete } = {}) {
     if (!containerEl || !vastTag) return false;
 
-    // Make sure container is positioned so overlay can be absolute
     ensureRelativePosition(containerEl);
-
-    // Kill any Tap-to-Play button while ads run
     removeTapToPlay(containerEl);
 
     const adDiv = document.createElement("div");
-    // IMPORTANT: Tailwind arbitrary value syntax (z-[99999]) — NOT z-99999
     adDiv.className = "wv-ad-overlay absolute inset-0 z-[99999] bg-black/90 flex items-center justify-center";
     containerEl.appendChild(adDiv);
 
@@ -1250,7 +1665,6 @@ async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
 
         adsLoader.requestAds(adsRequest);
 
-        // fail-safe so ads never hang playback
         setTimeout(() => cleanup(false), 20000);
       } catch (err) {
         logAds("VAST ad setup failed", err);
@@ -1273,7 +1687,6 @@ async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
       if (attempt < 12) return setTimeout(() => getVideo(cb, attempt + 1), 250);
     };
 
-    // Pre-roll
     if (preTag) {
       getVideo((video) => {
         runVastAd(preTag, containerEl, {
@@ -1283,7 +1696,6 @@ async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
       });
     }
 
-    // Mid-roll: repeating interval OR single midpoint fallback
     if (midTag) {
       getVideo((video) => {
         let lastFire = 0;
@@ -1312,7 +1724,6 @@ async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
           return;
         }
 
-        // fallback: single midpoint shot
         let triggerSec = midSeconds || null;
 
         const handler = () => {
@@ -1338,27 +1749,70 @@ async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
     }
   }
 
-  // ---------- Global Ads + VAST orchestration ----------
+  // =========================================================
+  // ✅ AD ORDER PATCH HELPERS (VAST FIRST)
+  // =========================================================
+  async function playVastPrerollOnce(adConfig, containerEl) {
+    const tag = adConfig?.preTag || "";
+    if (!tag || !containerEl) return false;
+
+    return await new Promise((resolve) => {
+      let done = false;
+      const finish = (ok) => { if (done) return; done = true; resolve(!!ok); };
+
+      const attemptStart = async () => {
+        try {
+          const v = findVideoInContainer(containerEl);
+          const started = await runVastAd(tag, containerEl, {
+            onBeforeAd: () => { try { v && v.pause(); } catch (_) {} },
+            onComplete: () => {
+              try {
+                const v2 = findVideoInContainer(containerEl);
+                if (v2?.play) v2.play().catch(() => {});
+              } catch (_) { addTapToPlayFallback(containerEl); }
+              finish(true);
+            }
+          });
+
+          if (!started) finish(false);
+        } catch (_) {
+          finish(false);
+        }
+      };
+
+      attemptStart();
+      setTimeout(() => finish(false), 25000);
+    });
+  }
+
+  // Global Ads + VAST orchestration
   async function playWithAdsIfNeeded({ containerEl, isAvod, isLive, adConfig }) {
     if (!containerEl) return;
+
+    // ✅ VAST FIRST for AVOD + LIVE
+    if ((isAvod || isLive) && adConfig?.preTag) {
+      try {
+        logAds("VAST preroll (FIRST)");
+        await playVastPrerollOnce(adConfig, containerEl);
+        adConfig = { ...(adConfig || {}), preTag: "" }; // avoid double-firing
+      } catch (_) {}
+    }
 
     const shouldPlayGlobal =
       (isAvod && CONFIG.PLAY_GLOBAL_ADS_ON_AVOD) || (isLive && CONFIG.PLAY_GLOBAL_ADS_ON_LIVE);
 
-    // Global pod first (optional) — pause content so no double audio
     if (shouldPlayGlobal && Array.isArray(CONFIG.GLOBAL_ADS) && CONFIG.GLOBAL_ADS.length) {
       let restore = null;
       try {
         restore = pauseContentAudio(containerEl);
         logAds("Playing GLOBAL_ADS pod (in-player)");
         await playGlobalAdPod(CONFIG.GLOBAL_ADS, { mountEl: containerEl });
-      } catch (_) {
       } finally {
         try { restore && restore(); } catch (_) {}
       }
     }
 
-    // Now wire up VAST ads for VOD
+    // Setup remaining VAST (mid-roll, or preroll if it wasn't run above)
     if (adConfig && (adConfig.preTag || adConfig.midTag)) {
       setupVodAds(adConfig, containerEl);
     }
@@ -1367,7 +1821,7 @@ async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
   // =========================================================
   // PLAYER MOUNT
   // =========================================================
-  function mountPlayer({ playbackId, directUrl, wrapId = "playerWrap" }) {
+  function mountPlayer({ playbackId, directUrl, streamType = "on-demand", wrapId = "playerWrap" }) {
     const wrap = document.getElementById(wrapId);
     if (!wrap) return;
 
@@ -1380,79 +1834,27 @@ async function playGlobalAdPod(ads = [], { mountEl = null } = {}) {
       ? `
         <mux-player
           id="${muxId}"
-          class="w-full h-full"
-          stream-type="on-demand"
+          stream-type="${esc(streamType)}"
           playback-id="${esc(playbackId)}"
           metadata-video-title="WatchVIM"
           controls
           autoplay
           playsinline
+          style="width:100%;height:100%;display:block;--media-object-fit:contain;--media-object-position:center;"
         ></mux-player>
       `
       : `
         <video
           id="${htmlId}"
-          class="w-full h-full"
           controls
           autoplay
           playsinline
           webkit-playsinline
+          style="width:100%;height:100%;display:block;object-fit:contain;background:#000;"
         >
           <source src="${esc(directUrl || "")}" type="video/mp4" />
         </video>
       `;
-  }
-
-  function removeTapToPlay(containerEl) {
-  if (!containerEl) return;
-  containerEl.querySelectorAll(".wv-tap-to-play").forEach((x) => x.remove());
-}
-
-function addTapToPlayFallback(containerEl) {
-  if (!containerEl) return;
-
-  // If an ad overlay is active (VAST or Global Pod), do not show tap button.
-  if (containerEl.querySelector(".wv-ad-overlay")) return;
-
-  const muxEl = containerEl.querySelector("mux-player");
-  const vid = findVideoInContainer(containerEl);
-  if (!muxEl && !vid) return;
-
-  // Don’t stack multiple
-  removeTapToPlay(containerEl);
-
-  const btn = document.createElement("button");
-  btn.className =
-    "wv-tap-to-play absolute inset-x-0 bottom-6 mx-auto w-fit px-4 py-2 rounded-full bg-watchRed text-white text-sm z-[10000]";
-  btn.textContent = "Tap to Play";
-  containerEl.appendChild(btn);
-
-  btn.addEventListener("click", async () => {
-    try {
-      const v = findVideoInContainer(containerEl);
-      if (v?.play) await v.play();
-    } catch (_) {}
-    btn.remove();
-  });
-}
-
-  // =========================================================
-  // LAST WATCHED
-  // =========================================================
-  function readLastWatched() {
-    try {
-      return JSON.parse(localStorage.getItem("watchvim_last_watched") || "[]");
-    } catch {
-      return [];
-    }
-  }
-  function saveLastWatched(items) {
-    localStorage.setItem("watchvim_last_watched", JSON.stringify(items.slice(0, 20)));
-  }
-  function markWatched(titleId, progress = 0) {
-    const items = readLastWatched().filter((x) => x.titleId !== titleId);
-    items.unshift({ titleId, progress, at: Date.now() });
-    saveLastWatched(items);
   }
 
   // =========================================================
@@ -1461,9 +1863,10 @@ function addTapToPlayFallback(containerEl) {
   function Header() {
     const tabs = ["Home", "Movies", "Series", "Shorts", "Foreign", "LIVE", "Search"];
     const loggedIn = !!state.user;
+    const avatar = loggedIn ? userAvatarUrl(state.user) : "";
 
     return `
-      <header class="sticky top-0 z-30 bg-watchBlack/95 backdrop-blur border-b border-white/10">
+      <header class="sticky top-0 z-30 bg-black/95 backdrop-blur border-b border-white/10">
         <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
           <button class="flex items-center gap-2" onclick="setTab('Home')" aria-label="Go home">
             <img
@@ -1477,29 +1880,29 @@ function addTapToPlayFallback(containerEl) {
           </button>
 
           <nav class="hidden md:flex ml-6 gap-2 text-sm">
-            ${tabs
-              .map(
-                (tab) => `
+            ${tabs.map((tab) => `
               <button
-                class="tv-focus px-3 py-1.5 rounded-full ${
-                  state.activeTab === tab ? "bg-white/15 text-white" : "text-white/70 hover:bg-white/10"
-                }"
+                class="tv-focus px-3 py-1.5 rounded-full ${state.activeTab === tab ? "bg-white/15 text-white" : "text-white/70 hover:bg-white/10"}"
                 onclick="${tab === "Search" ? "navTo('#/search')" : `setTab('${tab}')`}"
               >${tab}</button>
-            `
-              )
-              .join("")}
+            `).join("")}
           </nav>
 
           <div class="ml-auto flex gap-2 text-xs md:text-sm">
             ${
               loggedIn
                 ? `
-                  <button class="tv-focus px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20" onclick="navTo('#/profile')">Profile</button>
+                  <button class="tv-focus px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 flex items-center gap-2" onclick="navTo('#/profile')">
+                    <span class="wv-avatar"><img src="${esc(avatar)}" alt="Avatar"/></span>
+                    <span>Profile</span>
+                  </button>
                   <button class="tv-focus px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20" onclick="signOut()">Log out</button>
                 `
                 : `
                   <button class="tv-focus px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20" onclick="navTo('#/login?mode=login')">Log in</button>
+                  <button class="tv-focus px-3 py-1.5 rounded-lg font-bold hover:opacity-90"
+                    style="background:var(--watch-accent,#e50914);"
+                    onclick="navTo('#/login?mode=signup')">Become a Member</button>
                 `
             }
           </div>
@@ -1508,24 +1911,36 @@ function addTapToPlayFallback(containerEl) {
     `;
   }
 
+  // Footer links wired to static pages
+  function SiteFooter() {
+    const year = new Date().getFullYear();
+    return `
+      <footer class="wv-footer mt-10 border-t border-white/10 bg-black/95" style="background:rgba(0,0,0,.95);width:100%;">
+        <div class="max-w-6xl mx-auto px-4 md:px-8 py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-white/60">
+          <div>© ${year} WatchVIM</div>
+          <div class="flex items-center gap-4">
+            <a class="tv-focus hover:text-white" href="/privacy.html">Privacy</a>
+            <a class="tv-focus hover:text-white" href="/refund.html">Refund</a>
+            <a class="tv-focus hover:text-white" href="/terms.html">Terms</a>
+            <a class="tv-focus hover:text-white" href="/contact.html">Contact</a>
+          </div>
+        </div>
+      </footer>
+    `;
+  }
+
   function MobileTabBar() {
-    if (isTV()) return "";
+    if (!isMobile()) return "";
     const items = ["Home", "Movies", "Series", "Shorts", "Foreign", "LIVE"];
     return `
-      <footer class="fixed bottom-0 left-0 right-0 bg-watchBlack/95 border-t border-white/10">
+      <footer class="wv-mobilebar fixed bottom-0 left-0 right-0 bg-black/95 border-t border-white/10" style="background:rgba(0,0,0,.95);width:100%;">
         <div class="max-w-6xl mx-auto flex justify-around px-2 py-2">
-          ${items
-            .map(
-              (tab) => `
+          ${items.map((tab) => `
             <button
-              class="tv-focus flex-1 mx-1 py-2 rounded-lg text-[11px] ${
-                state.activeTab === tab ? "bg-white text-black font-semibold" : "bg-white/10 text-white/80"
-              }"
+              class="tv-focus flex-1 mx-1 py-2 rounded-lg text-[11px] ${state.activeTab === tab ? "bg-white text-black font-semibold" : "bg-white/10 text-white/80"}"
               onclick="setTab('${tab}')"
             >${tab}</button>
-          `
-            )
-            .join("")}
+          `).join("")}
         </div>
       </footer>
     `;
@@ -1546,18 +1961,22 @@ function addTapToPlayFallback(containerEl) {
   function HeroSection(items) {
     if (!items.length) return "";
 
-    const slidesHtml = items
-      .map((t, idx) => {
-        const img = hero(t);
-        const hasTrailer = !!t.trailerPlaybackId;
+    const slidesHtml = items.map((t, idx) => {
+      const img = heroImageForHeroItem(t);
+      const trailerPb = heroTrailerIdForHeroItem(t);
+      const hasTrailer = !!trailerPb;
+      const titleText = heroTitleForHeroItem(t);
+      const synopsisText = heroSynopsisForHeroItem(t);
+      const titleLogo = normalizeMediaUrl(firstUrl(t.__hero_titleLogoUrl));
+      const type = t.type;
 
-        return `
+      return `
         <div class="hero-slide absolute inset-0 ${idx === 0 ? "" : "hidden"}" data-hero-slide="${idx}">
           <div class="w-full h-full relative">
-            <div class="w-full h-full">
+            <div class="w-full h-full" data-hero-stage="1">
               ${img ? `<img src="${esc(img)}" class="w-full h-full object-cover" />` : ""}
-              <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-watchBlack via-watchBlack/40 to-transparent"></div>
-              <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-watchBlack/70 via-transparent to-transparent"></div>
+              <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+              <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 via-transparent to-transparent"></div>
             </div>
 
             ${
@@ -1566,7 +1985,7 @@ function addTapToPlayFallback(containerEl) {
                   <button
                     class="tv-focus absolute inset-0 flex items-center justify-center group"
                     onclick="navTo('#/watch/${t.id}?kind=trailer')"
-                    data-hero-hover="${esc(t.trailerPlaybackId)}"
+                    data-hero-hover="${esc(trailerPb)}"
                     aria-label="Play trailer preview"
                   >
                     <div class="w-14 h-14 md:w-16 md:h-16 rounded-full bg-black/60 border border-white/40 flex items-center justify-center text-2xl md:text-3xl group-hover:scale-105 transition-transform">
@@ -1579,15 +1998,17 @@ function addTapToPlayFallback(containerEl) {
 
             <div class="absolute left-0 right-0 bottom-0 p-4 md:p-8">
               <div class="max-w-3xl space-y-2 md:space-y-3">
-                <div class="text-[10px] md:text-xs uppercase tracking-[0.2em] text-watchGold/90">
-                  ${typeLabel(t.type)}
+                <div class="text-[10px] md:text-xs uppercase tracking-[0.2em] text-[color:var(--watch-gold,#d4af37)]/90">
+                  ${typeLabel(type)}
                 </div>
-                <h1 class="text-xl md:text-4xl font-black leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                  ${esc(t.title || "Untitled")}
-                </h1>
-                <p class="text-xs md:text-sm text-white/80 line-clamp-3 md:line-clamp-4">
-                  ${esc(t.synopsis || t.description || "")}
-                </p>
+
+                ${
+                  titleLogo
+                    ? `<img src="${esc(titleLogo)}" alt="${esc(titleText)}" class="h-10 md:h-14 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.75)]" />`
+                    : `<h1 class="text-xl md:text-4xl font-black leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">${esc(titleText)}</h1>`
+                }
+
+                <p class="text-xs md:text-sm text-white/80 line-clamp-3 md:line-clamp-4">${esc(synopsisText)}</p>
 
                 <div class="flex flex-wrap gap-2 text-[10px] md:text-xs text-white/70">
                   ${t.releaseYear ? `<span class="px-2 py-1 rounded bg-black/60 border border-white/10">${esc(t.releaseYear)}</span>` : ""}
@@ -1597,8 +2018,9 @@ function addTapToPlayFallback(containerEl) {
 
                 <div class="pt-1 md:pt-2 flex flex-wrap gap-2">
                   <button
-                    class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold text-xs md:text-sm hover:opacity-90"
-                    onclick="navTo('#/${t.type === "series" ? "series" : "title"}/${t.id}')"
+                    class="tv-focus px-4 py-2 rounded-lg font-bold text-xs md:text-sm hover:opacity-90"
+                    style="background:var(--watch-accent,#e50914);"
+                    onclick="openDetails('${esc(t.id)}','${esc(t.type)}')"
                   >View Details</button>
 
                   ${
@@ -1617,24 +2039,19 @@ function addTapToPlayFallback(containerEl) {
           </div>
         </div>
       `;
-      })
-      .join("");
+    }).join("");
 
     const dotsHtml =
       items.length > 1
         ? `
           <div class="absolute bottom-3 right-4 flex gap-1">
-            ${items
-              .map(
-                (_t, idx) => `
+            ${items.map((_t, idx) => `
               <button
                 class="hero-dot w-2.5 h-2.5 rounded-full border border-white/40 ${idx === 0 ? "bg-white" : "bg-transparent"}"
                 data-hero-dot="${idx}"
                 aria-label="Go to slide ${idx + 1}"
               ></button>
-            `
-              )
-              .join("")}
+            `).join("")}
           </div>
         `
         : "";
@@ -1678,10 +2095,7 @@ function addTapToPlayFallback(containerEl) {
   }
 
   function setupHeroCarousel(count) {
-    if (heroCarouselTimer) {
-      clearInterval(heroCarouselTimer);
-      heroCarouselTimer = null;
-    }
+    if (heroCarouselTimer) { clearInterval(heroCarouselTimer); heroCarouselTimer = null; }
     if (!count || count <= 1) return;
 
     showHeroSlide(heroCarouselIndex || 0);
@@ -1699,13 +2113,15 @@ function addTapToPlayFallback(containerEl) {
     heroCarouselTimer = setInterval(() => showHeroSlide(heroCarouselIndex + 1), 8000);
   }
 
+  // ✅ Hero hover trailer preview (cover)
   function wireHeroHover() {
     if (isTV()) return;
 
     document.querySelectorAll("[data-hero-hover]").forEach((btn) => {
       const pb = btn.getAttribute("data-hero-hover");
-      const container = btn.closest(".hero-slide") || btn.parentElement || btn;
-      if (!pb || !container) return;
+      const slide = btn.closest(".hero-slide");
+      const stage = slide?.querySelector?.('[data-hero-stage="1"]') || slide || btn;
+      if (!pb || !slide || !stage) return;
 
       let previewEl = null;
       let timer = null;
@@ -1715,7 +2131,7 @@ function addTapToPlayFallback(containerEl) {
         timer = setTimeout(() => {
           if (previewEl) return;
 
-          const imgEl = container.querySelector("img");
+          const imgEl = slide.querySelector("img");
           if (imgEl) imgEl.classList.add("hidden");
 
           previewEl = document.createElement("mux-player");
@@ -1725,9 +2141,14 @@ function addTapToPlayFallback(containerEl) {
           previewEl.setAttribute("autoplay", "");
           previewEl.setAttribute("loop", "");
           previewEl.setAttribute("playsinline", "");
-          previewEl.className = "absolute inset-0 w-full h-full object-cover";
+          previewEl.className = "wv-hero-preview";
 
-          container.insertBefore(previewEl, container.firstChild);
+          try {
+            previewEl.style.setProperty("--media-object-fit", "cover");
+            previewEl.style.setProperty("--media-object-position", "center");
+          } catch (_) {}
+
+          stage.insertBefore(previewEl, stage.firstChild);
         }, 250);
       });
 
@@ -1736,16 +2157,217 @@ function addTapToPlayFallback(containerEl) {
         if (previewEl) {
           previewEl.remove();
           previewEl = null;
-          const imgEl = container.querySelector("img");
+          const imgEl = slide.querySelector("img");
           if (imgEl) imgEl.classList.remove("hidden");
         }
       });
     });
   }
 
+  function wireRowScrolling() {
+    document.querySelectorAll(".row-scroll").forEach((row) => {
+      if (row.__wheelWired) return;
+      row.__wheelWired = true;
+
+      row.addEventListener("wheel", (e) => {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          row.scrollLeft += e.deltaY;
+          e.preventDefault();
+        }
+      }, { passive: false });
+    });
+  }
+
   // =========================================================
-  // UI BLOCKS
+  // PAGES
   // =========================================================
+  function LandingPage() {
+    return `
+      <section class="min-h-[calc(100vh-64px)] flex items-center justify-center px-4 md:px-8">
+        <div class="max-w-6xl mx-auto grid md:grid-cols-2 gap-8 items-center">
+          <div class="space-y-5 text-center md:text-left">
+            <div class="inline-flex items-center gap-3">
+              <img src="${esc(CONFIG.LOGO_URL)}" alt="WatchVIM" class="h-10 md:h-12 w-auto object-contain mx-auto md:mx-0"
+                onerror="this.onerror=null;this.style.display='none';" />
+              <span class="hidden md:inline text-[11px] uppercase tracking-[0.25em] text-[color:var(--watch-gold,#d4af37)]/80">Streaming Platform</span>
+            </div>
+
+            <h1 class="text-3xl md:text-5xl font-black leading-tight">
+              Cinema. Culture. <br><span class="text-[color:var(--watch-gold,#d4af37)]">On Demand.</span>
+            </h1>
+
+            <p class="text-white/70 text-sm md:text-base max-w-xl mx-auto md:mx-0">
+              WatchVIM brings films, series, and original stories together in one sleek destination.
+              Stream free with ads, subscribe for ad-free access, or rent selected titles.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-3 pt-1 justify-center md:justify-start">
+              <button class="tv-focus px-6 py-3 rounded-full font-bold text-sm md:text-base hover:opacity-90"
+                style="background:var(--watch-accent,#e50914);"
+                onclick="navTo('#/home')">Enter WatchVIM</button>
+
+              <button class="tv-focus px-6 py-3 rounded-full bg-white/5 border border-white/15 text-xs md:text-sm hover:bg-white/10"
+                onclick="navTo('#/login?mode=signup')">Become a Member</button>
+            </div>
+
+            <div class="pt-3 text-[11px] md:text-xs text-white/50">
+              Browse the catalog without logging in. Create an account when you’re ready.
+            </div>
+          </div>
+
+          <div class="w-full">
+            <div class="relative aspect-[9/16] md:aspect-video rounded-3xl overflow-hidden border border-white/10 bg-black shadow-2xl">
+              <mux-player
+                id="landingPromoPlayer"
+                class="w-full h-full"
+                stream-type="on-demand"
+                playback-id="${esc(PROMO_PLAYBACK_ID)}"
+                muted
+                autoplay
+                loop
+                playsinline
+                style="--media-object-fit: cover; --media-object-position: center;"
+              ></mux-player>
+              <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function tileCard(t) {
+    const p = poster(t);
+    return `
+      <button class="tv-focus text-left w-[140px] md:w-[170px] flex-none" onclick="openDetails('${esc(t.id)}','${esc(t.type)}')">
+        <div class="rounded-xl overflow-hidden border border-white/10 bg-white/5">
+          <div class="aspect-[2/3] bg-black">
+            ${p ? `<img src="${esc(p)}" class="w-full h-full object-cover" loading="lazy" />` : ""}
+          </div>
+        </div>
+        <div class="mt-2 text-xs md:text-sm font-semibold line-clamp-1">${esc(t.title || "Untitled")}</div>
+        <div class="text-[11px] text-white/60 line-clamp-1">${esc(typeLabel(t.type))}${t.releaseYear ? ` • ${esc(t.releaseYear)}` : ""}</div>
+      </button>
+    `;
+  }
+
+  function rowBlock(label, items) {
+    if (!items?.length) return "";
+    return `
+      <section class="mt-6">
+        <div class="px-4 md:px-8 max-w-6xl mx-auto flex items-center justify-between">
+          <div class="text-sm md:text-base font-black">${esc(label)}</div>
+        </div>
+        <div class="px-4 md:px-8 max-w-6xl mx-auto mt-3">
+          <div class="row-scroll flex gap-3 overflow-x-auto py-1">
+            ${items.map(tileCard).join("")}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function moreLikeThisGroupType(type) {
+    const t = String(type || "").toLowerCase();
+    if (t === "films" || t === "documentaries") return ["films", "documentaries"];
+    return [t || "films"];
+  }
+
+  function getMoreLikeThisItems(baseTitle, limit = 24) {
+    if (!baseTitle) return [];
+    const baseGenres = (baseTitle.genre || []).map((g) => String(g || "").toLowerCase()).filter(Boolean);
+    const group = moreLikeThisGroupType(baseTitle.type);
+
+    const candidates = state.titles
+      .filter((t) => t && t.id && t.id !== baseTitle.id)
+      .filter((t) => group.includes(String(t.type || "").toLowerCase()));
+
+    const scored = candidates.map((t) => {
+      let score = 0;
+
+      const tGenres = (t.genre || []).map((g) => String(g || "").toLowerCase());
+      for (const g of tGenres) if (baseGenres.includes(g)) score += 3;
+
+      const by = Number(baseTitle.releaseYear || 0);
+      const ty = Number(t.releaseYear || 0);
+      if (by && ty && Math.abs(by - ty) <= 2) score += 1;
+
+      if (String(t.language || "").toLowerCase() && String(baseTitle.language || "").toLowerCase()) {
+        if (String(t.language).toLowerCase() === String(baseTitle.language).toLowerCase()) score += 1;
+      }
+
+      return { t, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    let out = scored.filter((x) => x.score > 0).slice(0, limit).map((x) => x.t);
+
+    if (out.length < limit) {
+      const picked = new Set(out.map((x) => x.id));
+      const fillers = candidates.filter((x) => !picked.has(x.id)).slice(0, limit - out.length);
+      out = out.concat(fillers);
+    }
+
+    return out.slice(0, limit);
+  }
+
+  function MoreLikeThisSection(baseTitle) {
+    const items = getMoreLikeThisItems(baseTitle, 24);
+    if (!items.length) return "";
+    return `
+      <section class="mt-10">
+        <div class="px-4 md:px-8 max-w-6xl mx-auto flex items-center justify-between">
+          <div class="text-sm md:text-base font-black">More Like This</div>
+        </div>
+        <div class="px-4 md:px-8 max-w-6xl mx-auto mt-3">
+          <div class="row-scroll flex gap-3 overflow-x-auto py-1">
+            ${items.map(tileCard).join("")}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function HomePage() {
+    const tab = state.route.params?.tab || state.activeTab || "Home";
+    if (tab && tab !== state.activeTab) state.activeTab = tab;
+
+    const all = state.titles.slice();
+    const movies = all.filter(TAB_FILTERS.Movies);
+    const series = all.filter(TAB_FILTERS.Series);
+    const shorts = all.filter(TAB_FILTERS.Shorts);
+    const foreign = all.filter(TAB_FILTERS.Foreign);
+
+    const filterFn = TAB_FILTERS[tab] || TAB_FILTERS.Home;
+    const tabItems = all.filter(filterFn);
+
+    // ✅ Hero filtered by tab
+    let heroItems = sortFeatured(featuredItems());
+    if (tab && tab !== "Home") {
+      heroItems = heroItems.filter(filterFn);
+      if (!heroItems.length) heroItems = tabItems.slice(0, 10);
+    }
+    heroItems = heroItems.slice(0, 10);
+
+    const bodyRows = tab === "Home"
+      ? [
+          rowBlock("Trending Now", all.slice(0, 20)),
+          rowBlock("Movies & Docs", movies.slice(0, 20)),
+          rowBlock("Series", series.slice(0, 20)),
+          rowBlock("Shorts (Quick Watches)", shorts.slice(0, 20)),
+          rowBlock("Foreign & International", foreign.slice(0, 20))
+        ].join("")
+      : rowBlock(tab, tabItems.slice(0, 60));
+
+    return `
+      ${HeroSection(heroItems)}
+      <main class="pb-28 md:pb-10">
+        ${bodyRows}
+      </main>
+    `;
+  }
+
   function CreditsBlock(t) {
     const actors = (t.actors || t.cast || []).join?.(", ") || t.actors || t.cast || "";
     const director = (t.director || t.directors || "").toString();
@@ -1771,1421 +2393,1342 @@ function addTapToPlayFallback(containerEl) {
     `;
   }
 
-  function LandingPage() {
+  function TitleDetailPage(id) {
+    const t = state.byId.get(String(id));
+    if (!t) return notFound("Title not found");
+
+    const h = hero(t);
+    const p = poster(t);
+    const access = checkAccessForPlayback(t);
+
     return `
-      <section class="min-h-[calc(100vh-64px)] flex items-center justify-center bg-watchBlack px-4 md:px-8">
-        <div class="max-w-6xl mx-auto grid md:grid-cols-2 gap-8 items-center">
-          <div class="space-y-5 text-center md:text-left">
-            <div class="inline-flex items-center gap-3">
-              <img src="${esc(CONFIG.LOGO_URL)}" alt="WatchVIM" class="h-10 md:h-12 w-auto object-contain mx-auto md:mx-0"
-                onerror="this.onerror=null;this.style.display='none';" />
-              <span class="hidden md:inline text-[11px] uppercase tracking-[0.25em] text-watchGold/80">Streaming Platform</span>
-            </div>
+      <main class="pb-28 md:pb-10">
+        <section class="relative">
+          <button
+            class="wv-btn absolute top-4 left-4 z-20"
+            style="background:rgba(0,0,0,.55);border-color:rgba(255,255,255,.18);backdrop-filter:blur(10px);"
+            onclick="goBackToCatalog()"
+          >← Back</button>
 
-            <h1 class="text-3xl md:text-5xl font-black leading-tight">
-              Cinema. Culture. <br><span class="text-watchGold">On Demand.</span>
-            </h1>
-
-            <p class="text-white/70 text-sm md:text-base max-w-xl mx-auto md:mx-0">
-              WatchVIM brings films, series, and original stories together in one sleek destination.
-              Stream free with ads, subscribe for ad-free access, or rent selected titles.
-            </p>
-
-            <div class="flex flex-col sm:flex-row gap-3 pt-1 justify-center md:justify-start">
-              <button class="tv-focus px-6 py-3 rounded-full bg-watchRed font-bold text-sm md:text-base hover:opacity-90" onclick="navTo('#/home')">
-                Enter WatchVIM
-              </button>
-              <button class="tv-focus px-6 py-3 rounded-full bg-white/5 border border-white/15 text-xs md:text-sm hover:bg-white/10" onclick="navTo('#/login?mode=signup')">
-                Become a Member
-              </button>
-            </div>
-
-            <div class="pt-3 text-[11px] md:text-xs text-white/50">
-              Browse the catalog without logging in. Create an account when you’re ready.
-            </div>
+          <div class="aspect-[16/9] md:aspect-[21/9] bg-black">
+            ${h ? `<img src="${esc(h)}" class="w-full h-full object-cover" />` : ""}
           </div>
+          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"></div>
 
-          <div class="w-full">
-            <div class="relative aspect-[9/16] md:aspect-video rounded-3xl overflow-hidden border border-white/10 bg-black shadow-2xl">
-              <mux-player
-                id="landingPromoPlayer"
-                class="w-full h-full"
-                stream-type="on-demand"
-                playback-id="${PROMO_PLAYBACK_ID}"
-                muted
-                autoplay
-                loop
-                playsinline
-                primary-color="#e50914"
-              ></mux-player>
-              <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-    `;
-  }
+          <div class="max-w-6xl mx-auto px-4 md:px-8 -mt-24 md:-mt-28 relative">
+            <div class="flex gap-4 md:gap-6 items-end">
+              <div class="w-28 md:w-40 flex-none">
+                <div class="rounded-2xl overflow-hidden border border-white/10 bg-white/5">
+                  <div class="aspect-[2/3] bg-black">
+                    ${p ? `<img src="${esc(p)}" class="w-full h-full object-cover" />` : ""}
+                  </div>
+                </div>
+              </div>
 
-  function Card(t) {
-    const img = poster(t);
-    const href = t.type === "series" ? `#/series/${t.id}` : `#/title/${t.id}`;
-    return `
-      <button class="tile tv-focus text-left" onclick="navTo('${href}')">
-        <div class="tile-poster rounded-xl overflow-hidden bg-white/5 border border-white/10">
-          ${img ? `<img src="${esc(img)}" class="w-full h-full object-cover" />` : ""}
-        </div>
-        <div class="mt-2 text-sm font-semibold line-clamp-2">${esc(t.title || "Untitled")}</div>
-        <div class="text-xs text-white/60">${esc(typeLabel(t.type))}</div>
-      </button>
-    `;
-  }
+              <div class="flex-1 pb-2">
+                <div class="text-[10px] md:text-xs uppercase tracking-[0.2em] text-[color:var(--watch-gold,#d4af37)]/90">${esc(typeLabel(t.type))}</div>
+                <h1 class="text-2xl md:text-4xl font-black leading-tight">${esc(t.title || "Untitled")}</h1>
+                <div class="mt-2 text-xs md:text-sm text-white/70 line-clamp-3">${esc(t.synopsis || t.description || "")}</div>
 
-  function Row(name, items, viewAllTab = null) {
-    if (!items.length) return "";
-    const tabTarget = viewAllTab || name;
-    return `
-      <section class="mt-6 px-4 md:px-8">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-lg font-bold">${esc(name)}</h3>
-          ${
-            viewAllTab
-              ? `<button class="tv-focus text-xs text-white/60 hover:text-white" onclick="setTab('${esc(tabTarget)}')">View all</button>`
-              : ``
-          }
-        </div>
-        <div class="row-scroll flex gap-3 overflow-x-auto pb-2">
-          ${items.map(Card).join("")}
-        </div>
-      </section>
-    `;
-  }
+                <div class="mt-3 flex flex-wrap gap-2 text-[11px] md:text-xs text-white/70">
+                  ${t.releaseYear ? `<span class="px-2 py-1 rounded bg-white/10">${esc(t.releaseYear)}</span>` : ""}
+                  ${toMins(t.runtimeMins) ? `<span class="px-2 py-1 rounded bg-white/10">${toMins(t.runtimeMins)} mins</span>` : ""}
+                  ${(t.genre || []).slice(0, 4).map((g) => `<span class="px-2 py-1 rounded bg-white/10">${esc(g)}</span>`).join("")}
+                </div>
 
-  function HomePage() {
-    const all = state.titles.slice();
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <button class="tv-focus px-4 py-2 rounded-xl font-bold text-sm hover:opacity-90"
+                    style="background:var(--watch-accent,#e50914);"
+                    onclick="startPlayback('${esc(t.id)}','content')">Play</button>
 
-    if (state.activeTab === "Home") {
-      const featured = sortFeatured(featuredItems());
-      const heroItems = (featured.length ? featured : all).slice(0, 6);
+                  ${t.trailerPlaybackId ? `
+                    <button class="tv-focus px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm"
+                      onclick="startPlayback('${esc(t.id)}','trailer')">Trailer</button>
+                  ` : ""}
 
-      const lastWatched = readLastWatched()
-        .map((x) => state.byId.get(x.titleId))
-        .filter(Boolean);
+                  ${
+                    access.allowed === false && access.reason === "tvod"
+                      ? `<button class="tv-focus px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm"
+                          onclick="startTVODCheckout('${esc(t.id)}')">Rent / Buy</button>`
+                      : ""
+                  }
+                </div>
 
-      const movies = all.filter(TAB_FILTERS.Movies);
-      const series = all.filter(TAB_FILTERS.Series);
-      const shorts = all.filter(TAB_FILTERS.Shorts);
-      const foreign = all.filter(TAB_FILTERS.Foreign);
-
-      return `
-        ${HeroSection(heroItems)}
-        <div class="py-6 space-y-2">
-          ${lastWatched.length ? Row("Continue Watching", lastWatched.slice(0, 12)) : ""}
-          ${Row("Top Movies & Docs", movies.slice(0, 20), "Movies")}
-          ${Row("Top Series", series.slice(0, 20), "Series")}
-          ${Row("Top Shorts", shorts.slice(0, 20), "Shorts")}
-          ${Row("Top Foreign", foreign.slice(0, 20), "Foreign")}
-        </div>
-      `;
-    }
-
-    const filterFn = TAB_FILTERS[state.activeTab] || (() => true);
-    const filtered = all.filter(filterFn);
-    const heroItems = filtered.slice(0, 3);
-
-    const byGenre = {};
-    filtered.forEach((t) => {
-      (t.genre || ["Featured"]).forEach((g) => {
-        const key = g || "Featured";
-        byGenre[key] = byGenre[key] || [];
-        byGenre[key].push(t);
-      });
-    });
-
-    const genreRows = Object.entries(byGenre)
-      .slice(0, 8)
-      .map(([g, items]) => Row(g, items.slice(0, 20)))
-      .join("");
-
-    return `
-      ${HeroSection(heroItems)}
-      <div class="py-6 space-y-6">
-        ${Row(`Top ${state.activeTab}`, filtered.slice(0, 20))}
-        ${genreRows}
-      </div>
-    `;
-  }
-
-  // =========================================================
-  // CTA RENDERING
-  // =========================================================
-  function renderWatchCTA(t, kind = "content") {
-    const isAVOD = isAvodTitle(t);
-    const isSVOD = isSvodTitle(t);
-    const hasTVODFlag = hasTvod(t);
-
-    const isMember = isActiveSvodMember();
-    const unlocked = isTVODUnlockedForTitle(t);
-
-    const ctas = [];
-
-    if (isAVOD && isSVOD) {
-      ctas.push(`
-        <button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20"
-          onclick="navTo('#/watch/${t.id}?kind=content')">Watch with Ads</button>
-      `);
-
-      if (isMember) {
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-            onclick="navTo('#/watch/${t.id}?kind=content')">Watch Ad-Free</button>
-        `);
-      } else {
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-            onclick="${state.user ? `startMembershipCheckout('svod-monthly')` : `navTo('#/login?mode=signup')`}">Subscribe for Ad-Free</button>
-        `);
-      }
-
-      return ctas.join("\n");
-    }
-
-    if (isAVOD) {
-      ctas.push(`
-        <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-          onclick="navTo('#/watch/${t.id}?kind=${encodeURIComponent(kind)}')">Watch with Ads</button>
-      `);
-      return ctas.join("\n");
-    }
-
-    if (isSVOD) {
-      if (!state.user) {
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-            onclick="navTo('#/login?mode=login')">Log In to Watch</button>
-        `);
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20"
-            onclick="navTo('#/login?mode=signup')">Create Account</button>
-        `);
-      } else if (!isMember) {
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-            onclick="startMembershipCheckout('svod-monthly')">Unlock with Membership</button>
-        `);
-      } else {
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-            onclick="navTo('#/watch/${t.id}?kind=${encodeURIComponent(kind)}')">Watch Now</button>
-        `);
-      }
-      return ctas.join("\n");
-    }
-
-    if (hasTVODFlag) {
-      if (!state.user) {
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-            onclick="navTo('#/login?mode=login')">Log In to Rent/Buy</button>
-        `);
-      } else if (unlocked) {
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-            onclick="navTo('#/watch/${t.id}?kind=${encodeURIComponent(kind)}')">Watch Now</button>
-        `);
-      } else {
-        ctas.push(`
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-            onclick="startTVODCheckout('${t.id}')">Rent / Buy</button>
-        `);
-      }
-      return ctas.join("\n");
-    }
-
-    ctas.push(`
-      <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90"
-        onclick="navTo('#/watch/${t.id}?kind=${encodeURIComponent(kind)}')">Watch Free</button>
-    `);
-    return ctas.join("\n");
-  }
-
-  function PaywallPage(t, gate) {
-    const reason = gate?.reason || "upgrade";
-    const message = gate?.message || "This content requires access. Please log in or upgrade your membership.";
-
-    const isLogin = reason === "login";
-    const isTVOD = reason === "tvod";
-
-    return `
-      <div class="p-6 md:p-10 max-w-3xl mx-auto space-y-4">
-        <div class="text-2xl md:text-3xl font-black">Access Required</div>
-        <div class="text-white/70">${esc(message)}</div>
-
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
-          <div class="text-sm text-white/60">Title</div>
-          <div class="text-lg font-semibold">${esc(t?.title || "Untitled")}</div>
-
-          <div class="flex flex-wrap gap-2 pt-2">
-            ${
-              isLogin
-                ? `
-                  <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90" onclick="navTo('#/login?mode=login')">Log In</button>
-                  <button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20" onclick="navTo('#/login?mode=signup')">Create Account</button>
-                `
-                : ""
-            }
-            ${
-              isTVOD
-                ? `<button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90" onclick="startTVODCheckout('${esc(t?.id || "")}')">Rent / Buy</button>`
-                : ""
-            }
-            ${
-              !isLogin && !isTVOD
-                ? `<button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90" onclick="navTo('#/login?mode=signup')">Become a Member</button>`
-                : ""
-            }
-            <button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20" onclick="history.length > 1 ? history.back() : navTo('#/home')">Go Back</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function TitlePage(id) {
-    const t = state.byId.get(id);
-    if (!t) return NotFound("Title not found");
-
-    const img = hero(t);
-
-    const accessBadge = [
-      isSvodTitle(t) ? "SVOD" : null,
-      isAvodTitle(t) ? "AVOD" : null,
-      hasTvod(t) ? "TVOD" : null
-    ].filter(Boolean).join(" • ");
-
-    return `
-      <section class="relative">
-        <div class="aspect-video bg-black">
-          ${img ? `<img src="${esc(img)}" class="w-full h-full object-cover opacity-90"/>` : ""}
-          <div class="absolute inset-0 bg-gradient-to-t from-watchBlack via-watchBlack/40 to-transparent"></div>
-        </div>
-
-        <div class="p-4 md:p-8 -mt-12 md:-mt-20 relative z-10">
-          <div class="max-w-4xl space-y-3">
-            <button class="tv-focus text-xs text-white/70 hover:text-white" onclick="history.back()">← Back</button>
-
-            <div class="flex flex-wrap gap-2 text-xs text-white/70">
-              <span class="px-2 py-1 rounded bg-white/10">${typeLabel(t.type)}</span>
-              ${t.releaseYear ? `<span class="px-2 py-1 rounded bg-white/10">${esc(t.releaseYear)}</span>` : ""}
-              ${toMins(t.runtimeMins) ? `<span class="px-2 py-1 rounded bg-white/10">${toMins(t.runtimeMins)} mins</span>` : ""}
-              ${accessBadge ? `<span class="px-2 py-1 rounded bg-watchGold/20 text-watchGold">${accessBadge}</span>` : ""}
-            </div>
-
-            <h1 class="text-2xl md:text-4xl font-black">${esc(t.title || "Untitled")}</h1>
-            <p class="text-white/80">${esc(t.synopsis || t.description || "")}</p>
-
-            ${CreditsBlock(t)}
-
-            <div class="flex flex-wrap gap-2 pt-2">
-              ${t.trailerPlaybackId ? `<button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20" onclick="navTo('#/watch/${t.id}?kind=trailer')">Play Trailer</button>` : ""}
-              ${renderWatchCTA(t, "content")}
-            </div>
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
-  function SeriesPage(id) {
-    const s = state.byId.get(id);
-    if (!s || s.type !== "series") return NotFound("Series not found");
-    const img = hero(s);
-
-    return `
-      <section class="relative">
-        <div class="aspect-video bg-black">
-          ${img ? `<img src="${esc(img)}" class="w-full h-full object-cover opacity-90"/>` : ""}
-          <div class="absolute inset-0 bg-gradient-to-t from-watchBlack via-watchBlack/40 to-transparent"></div>
-        </div>
-
-        <div class="p-4 md:p-8 -mt-12 md:-mt-20 relative z-10">
-          <div class="max-w-5xl space-y-3">
-            <button class="tv-focus text-xs text-white/70 hover:text-white" onclick="history.back()">← Back</button>
-            <div class="text-xs uppercase tracking-widest text-watchGold/90">Series</div>
-            <h1 class="text-2xl md:text-4xl font-black">${esc(s.title || "Untitled")}</h1>
-            <p class="text-white/80">${esc(s.synopsis || s.description || "")}</p>
-
-            ${CreditsBlock(s)}
-
-            <div class="pt-6 space-y-5">
-              ${
-                (s.seasons || []).map((season, si) => SeasonBlock(s, season, si)).join("") ||
-                `<div class="text-white/60 text-sm">No seasons published yet.</div>`
-              }
-            </div>
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
-  function SeasonBlock(series, season, seasonIndex) {
-    const episodes = season.episodes || [];
-    return `
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-bold">Season ${season.seasonNumber || seasonIndex + 1}</h2>
-          <div class="text-xs text-white/60">${episodes.length} episodes</div>
-        </div>
-        <div class="space-y-2">
-          ${episodes.map((ep, ei) => EpisodeRow(series, ep, seasonIndex, ei)).join("")}
-        </div>
-      </div>
-    `;
-  }
-
-  function EpisodeRow(series, ep, seasonIndex, epIndex) {
-    const img = ep.thumbnailUrl || series.posterUrl || "";
-    return `
-      <div class="flex gap-3 p-2 rounded-lg bg-white/5 border border-white/10">
-        <img src="${esc(img)}" class="w-20 h-28 object-cover rounded-md bg-black/40"/>
-        <div class="flex-1 space-y-1">
-          <div class="text-sm font-semibold">
-            E${ep.episodeNumber || epIndex + 1} — ${esc(ep.title || "Untitled")}
-          </div>
-          <div class="text-xs text-white/60 line-clamp-2">${esc(ep.synopsis || ep.description || "")}</div>
-
-          <div class="flex gap-2 pt-1">
-            ${ep.trailerPlaybackId ? `<button class="tv-focus px-3 py-1.5 text-xs rounded bg-white/10 hover:bg-white/20" onclick="navTo('#/episode/${series.id}/${seasonIndex}/${epIndex}?kind=trailer')">Trailer</button>` : ""}
-            <button class="tv-focus px-3 py-1.5 text-xs rounded bg-watchRed font-bold" onclick="navTo('#/episode/${series.id}/${seasonIndex}/${epIndex}?kind=content')">Watch</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function MoreLikeThisBlock(current) {
-    if (!current) return "";
-
-    const all = state.titles || [];
-    const currentGenres = (current.genre || []).map((g) => String(g).toLowerCase());
-    const currentType = current.type;
-
-    const recs = all
-      .filter((t) => t && t.id !== current.id)
-      .filter((t) => (!currentType || !t.type || t.type === currentType))
-      .filter((t) => {
-        if (!currentGenres.length) return true;
-        const g2 = (t.genre || []).map((g) => String(g).toLowerCase());
-        return g2.some((g) => currentGenres.includes(g));
-      })
-      .slice(0, 8);
-
-    if (!recs.length) return "";
-
-    const itemsHtml = recs.map((t) => {
-      const img = poster(t) || hero(t) || "";
-      const href = t.type === "series" ? "#/series/" + t.id : "#/title/" + t.id;
-      return `
-        <button class="tv-focus w-full text-left" onclick="navTo('${href}')">
-          <div class="flex gap-2 items-center rounded-lg hover:bg-white/5 p-1.5">
-            <div class="w-14 h-20 rounded-md overflow-hidden bg-black/40 border border-white/10 flex-shrink-0">
-              ${img ? `<img src="${esc(img)}" class="w-full h-full object-cover"/>` : ""}
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="text-xs font-semibold line-clamp-2">${esc(t.title || "Untitled")}</div>
-              <div class="text-[11px] text-white/60 mt-0.5">
-                ${esc(typeLabel(t.type))}
-                ${t.releaseYear ? " • " + esc(t.releaseYear) : ""}
-                ${toMins(t.runtimeMins) ? " • " + toMins(t.runtimeMins) + " mins" : ""}
+                ${CreditsBlock(t)}
               </div>
             </div>
           </div>
-        </button>
-      `;
-    }).join("");
+        </section>
 
-    return `
-      <div class="bg-white/5 border border-white/10 rounded-2xl p-3 space-y-3">
-        <div class="flex items-center justify-between mb-1">
-          <div class="text-sm font-semibold">More like this</div>
-        </div>
-        <div class="space-y-2 max-h-[400px] overflow-y-auto pr-1">${itemsHtml}</div>
-      </div>
+        ${MoreLikeThisSection(t)}
+      </main>
     `;
   }
 
-  function WatchPage(id, kind = "content") {
-    const t = state.byId.get(id);
-    if (!t) return NotFound("Title not found");
+  // ✅ Series: fixed (no rogue pasted snippet), season tabs in header, episode thumbs restored
+  function SeriesDetailPage(id, seasonParam) {
+    const series = state.byId.get(String(id));
+    if (!series) return notFound("Series not found");
 
-    const isTrailer = kind === "trailer";
-    const gate = isTrailer ? { allowed: true, adMode: "none" } : checkAccessForPlayback(t);
-    if (!gate.allowed) return PaywallPage(t, gate);
+    const seasons = Array.isArray(series.seasons) ? series.seasons : [];
+    let seasonIndex = Number(seasonParam);
+    if (!Number.isFinite(seasonIndex) || seasonIndex < 0) seasonIndex = 0;
+    if (seasonIndex >= seasons.length) seasonIndex = 0;
 
-    const img = hero(t);
+    const currentSeason = seasons[seasonIndex] || { episodes: [] };
+    const episodes = Array.isArray(currentSeason.episodes) ? currentSeason.episodes : [];
 
-    const accessBadge = [
-      isSvodTitle(t) ? "SVOD" : null,
-      isAvodTitle(t) ? "AVOD" : null,
-      hasTvod(t) ? "TVOD" : null
-    ].filter(Boolean).join(" • ");
-
-    return `
-      <section class="p-4 md:p-8 space-y-4">
-        <button class="tv-focus text-xs text-white/70 hover:text-white" onclick="history.back()">← Back</button>
-
-        <div class="grid lg:grid-cols-[2fr,1fr] gap-6 items-start mt-2">
-          <div class="space-y-4">
-            <div class="relative rounded-2xl overflow-hidden border border-white/10 bg-black">
-              ${img ? `<img src="${esc(img)}" class="pointer-events-none absolute inset-0 w-full h-full object-cover opacity-20" alt=""/>` : ""}
-              <div id="playerWrap" class="relative z-10 aspect-video w-full bg-black"></div>
-              <div class="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-            </div>
-          </div>
-
-          <aside class="space-y-4">
-            <div class="space-y-2">
-              <div class="flex flex-wrap gap-2 text-[10px] md:text-xs text-white/70">
-                <span class="px-2 py-1 rounded bg-white/10">${typeLabel(t.type)}</span>
-                ${t.releaseYear ? `<span class="px-2 py-1 rounded bg-white/10">${esc(t.releaseYear)}</span>` : ""}
-                ${toMins(t.runtimeMins) ? `<span class="px-2 py-1 rounded bg-white/10">${toMins(t.runtimeMins)} mins</span>` : ""}
-                ${accessBadge ? `<span class="px-2 py-1 rounded bg-watchGold/20 text-watchGold">${accessBadge}</span>` : ""}
-              </div>
-
-              <h1 class="text-2xl md:text-4xl font-black">${esc(t.title || "Untitled")}</h1>
-              <p class="text-sm md:text-base text-white/80">${esc(t.synopsis || t.description || "")}</p>
-            </div>
-
-            <div class="flex flex-wrap gap-2">
-              ${t.trailerPlaybackId ? `<button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs md:text-sm" onclick="navTo('#/watch/${t.id}?kind=trailer')">Play Trailer</button>` : ""}
-              ${renderWatchCTA(t, kind)}
-            </div>
-
-            ${CreditsBlock(t)}
-            ${MoreLikeThisBlock(t)}
-          </aside>
-        </div>
-      </section>
-    `;
-  }
-
-  function EpisodeWatchPage(seriesId, seasonIndex, epIndex, kind = "content") {
-    const s = state.byId.get(seriesId);
-    const season = s?.seasons?.[Number(seasonIndex)];
-    const ep = season?.episodes?.[Number(epIndex)];
-    if (!s || !ep) return NotFound("Episode not found");
-
-    const isTrailer = kind === "trailer";
-    const monet = ep.monetization || s.monetization || {};
-    const gate = isTrailer ? { allowed: true, adMode: "none" } : checkAccessForPlayback({ ...s, monetization: monet, id: s.id });
-    if (!gate.allowed) return PaywallPage({ ...s, monetization: monet }, gate);
-
-    const img = hero(s);
-    const titleLine = `${s.title || "Series"} — S${season.seasonNumber || Number(seasonIndex) + 1}E${ep.episodeNumber || Number(epIndex) + 1} • ${ep.title || "Untitled"}`;
+    const heroUrl = hero(series);
+    const posterUrl = poster(series);
 
     return `
-      <section class="p-4 md:p-8 space-y-4">
-        <button class="tv-focus text-xs text-white/70 hover:text-white" onclick="history.back()">← Back</button>
+      <main class="pb-28 md:pb-10">
+        <button
+          class="wv-btn absolute top-4 left-4 z-20"
+          style="background:rgba(0,0,0,.55);border-color:rgba(255,255,255,.18);backdrop-filter:blur(10px);"
+          onclick="goBackToCatalog()"
+        >← Back</button>
 
-        <div class="grid lg:grid-cols-[2fr,1fr] gap-6 items-start mt-2">
-          <div class="space-y-4">
-            <div class="relative rounded-2xl overflow-hidden border border-white/10 bg-black">
-              ${img ? `<img src="${esc(img)}" class="pointer-events-none absolute inset-0 w-full h-full object-cover opacity-20" alt=""/>` : ""}
-              <div id="playerWrap" class="relative z-10 aspect-video w-full bg-black"></div>
-              <div class="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+        <div class="seriesHero" style="background-image:url('${esc(heroUrl)}')">
+          <div class="seriesHeroScrim"></div>
+        </div>
+
+        <section class="seriesHeader max-w-6xl mx-auto">
+          <img class="seriesPoster" src="${esc(posterUrl)}" alt="${esc(series.title || "Series")} Poster" />
+
+          <div class="seriesMeta">
+            <div class="kicker">SERIES</div>
+            <h1 class="title">${esc(series.title || "Untitled")}</h1>
+            ${(series.logline || series.tagline) ? `<div class="tagline">${esc(series.logline || series.tagline)}</div>` : ""}
+
+            <div class="seasonTabs">
+              ${(seasons || []).map((ss, idx) => `
+                <button
+                  class="tv-focus px-3 py-2 rounded-xl text-xs md:text-sm ${idx === seasonIndex ? "bg-white text-black font-bold" : "bg-white/10 hover:bg-white/20 text-white"}"
+                  onclick="navTo('#/series/${esc(series.id)}?season=${idx}')"
+                >Season ${idx + 1}</button>
+              `).join("")}
             </div>
           </div>
+        </section>
 
-          <aside class="space-y-4">
-            <div class="space-y-2">
-              <div class="text-[11px] uppercase tracking-[0.2em] text-watchGold/80">Series • Episode</div>
-              <h1 class="text-xl md:text-2xl font-black">${esc(titleLine)}</h1>
-              <p class="text-sm md:text-base text-white/80">${esc(ep.synopsis || ep.description || "")}</p>
-            </div>
+        <section class="seriesBody max-w-6xl mx-auto">
+          <div class="text-sm font-black">Episodes</div>
 
-            <div class="flex flex-wrap gap-2">
-              ${ep.trailerPlaybackId ? `<button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs md:text-sm" onclick="navTo('#/episode/${seriesId}/${seasonIndex}/${epIndex}?kind=trailer')">Play Trailer</button>` : ""}
-              <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90 text-xs md:text-sm" onclick="navTo('#/episode/${seriesId}/${seasonIndex}/${epIndex}?kind=content')">Play Episode</button>
-            </div>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            ${episodes.map((ep, ei) => {
+              const epPoster = episodePoster(ep, series);
+              return `
+                <button class="tv-focus text-left p-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10"
+                  onclick="startEpisode('${esc(series.id)}', ${seasonIndex}, ${ei})">
+                  <div class="flex gap-3">
+                    <div class="w-28 flex-none rounded-xl overflow-hidden bg-black border border-white/10">
+                      <div class="aspect-[16/9] bg-black">
+                        ${epPoster ? `<img src="${esc(epPoster)}" class="w-full h-full object-cover" />` : ""}
+                      </div>
+                    </div>
+                    <div class="flex-1">
+                      <div class="text-xs text-white/60">S${seasonIndex + 1} • E${ei + 1}</div>
+                      <div class="text-sm font-bold line-clamp-1">${esc(ep.title || `Episode ${ei + 1}`)}</div>
+                      <div class="text-[12px] text-white/70 line-clamp-2 mt-1">${esc(ep.synopsis || ep.description || "")}</div>
+                    </div>
+                  </div>
+                </button>
+              `;
+            }).join("")}
+          </div>
 
-            ${CreditsBlock(ep)}
-          </aside>
-        </div>
-      </section>
+          ${CreditsBlock(series)}
+          ${MoreLikeThisSection(series)}
+        </section>
+      </main>
     `;
   }
 
   function SearchPage() {
     return `
-      <div class="p-4 md:p-8 space-y-4">
-        <div class="text-2xl font-bold">Search</div>
-        <input id="searchInput" class="w-full px-4 py-3 rounded-xl bg-white/10 outline-none" placeholder="Search titles..." />
-        <div id="searchResults" class="grid grid-cols-2 md:grid-cols-6 gap-3 mt-2"></div>
-      </div>
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-10">
+        <div class="text-xl font-black">Search</div>
+        <div class="mt-4">
+          <input id="searchBox" class="wv-input" placeholder="Search titles…" />
+        </div>
+        <div id="searchResults" class="mt-5 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
+      </main>
     `;
   }
 
   function wireSearch() {
-    const input = document.getElementById("searchInput");
-    const results = document.getElementById("searchResults");
-    if (!input || !results) return;
+    const box = document.getElementById("searchBox");
+    const out = document.getElementById("searchResults");
+    if (!box || !out) return;
 
-    const all = state.titles.slice();
-    const show = (q) => {
-      const qq = (q || "").toLowerCase();
-      const f = all.filter((t) => (t.title || "").toLowerCase().includes(qq));
-      results.innerHTML = f.map((t) => `
-        <button class="tv-focus text-left group" onclick="navTo('#/${t.type === "series" ? "series" : "title"}/${t.id}')">
-          <div class="tile-poster rounded-xl overflow-hidden bg-white/5">
-            <img src="${esc(poster(t) || hero(t) || "")}" class="w-full h-full object-cover"/>
-          </div>
-          <div class="mt-2 text-sm line-clamp-1">${esc(t.title || "Untitled")}</div>
-        </button>
-      `).join("");
-      if (isTV()) tvFocusReset();
+    const renderResults = (q) => {
+      const query = String(q || "").trim().toLowerCase();
+      const results = !query ? [] : state.titles.filter((t) =>
+        String(t.title || "").toLowerCase().includes(query) ||
+        String(t.synopsis || t.description || "").toLowerCase().includes(query) ||
+        (t.genre || []).join(" ").toLowerCase().includes(query)
+      ).slice(0, 60);
+
+      out.innerHTML = results.map(tileCard).join("") || `<div class="col-span-full text-white/60 text-sm">No results.</div>`;
     };
 
-    input.addEventListener("input", (e) => show(e.target.value || ""));
-    show("");
+    box.addEventListener("input", () => renderResults(box.value));
+    setTimeout(() => box.focus(), 50);
   }
 
-  let loginView = "login";
-  function setLoginView(view) {
-    loginView = view === "signup" ? "signup" : "login";
-    navTo(`#/login?mode=${loginView}`);
-  }
-
-  function LoginPage() {
-    if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
-      return `
-        <div class="p-6 max-w-md mx-auto space-y-3">
-          <div class="text-2xl font-bold">Login</div>
-          <div class="text-white/70 text-sm">Supabase isn’t configured yet. Add SUPABASE_URL and SUPABASE_ANON_KEY to /config.json.</div>
-        </div>
-      `;
-    }
-
-    const isLogin = loginView === "login";
+  function LoginPage(mode = "login") {
+    const isSignup = String(mode).toLowerCase() === "signup";
+    const defaultPick = "ember";
     return `
-      <div class="p-6 max-w-md mx-auto space-y-5">
-        <div class="text-2xl font-black">Welcome to WatchVIM</div>
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-10 pb-28 md:pb-10">
+        <div class="max-w-md mx-auto border border-white/10 bg-white/5 rounded-3xl p-6">
+          <div class="text-2xl font-black">${isSignup ? "Create account" : "Log in"}</div>
+          <div class="text-white/60 text-sm mt-1">${isSignup ? "Join WatchVIM in a few clicks." : "Welcome back."}</div>
 
-        <div class="flex rounded-xl bg-white/5 border border-white/10 p-1 text-sm">
-          <button class="tv-focus flex-1 py-2 rounded-lg ${isLogin ? "bg-white/15" : "hover:bg-white/10 text-white/70"}" onclick="setLoginView('login')">Log In</button>
-          <button class="tv-focus flex-1 py-2 rounded-lg ${!isLogin ? "bg-white/15" : "hover:bg-white/10 text-white/70"}" onclick="setLoginView('signup')">Become a Member</button>
+          ${isSignup ? `
+            <div class="mt-5">
+              <label class="text-xs text-white/60">Full name</label>
+              <input id="authName" class="wv-input mt-2" placeholder="Your name" />
+            </div>
+
+            <div class="mt-5">
+              <div class="text-xs text-white/60">Choose an avatar</div>
+              <input id="authAvatar" type="hidden" value="${esc(defaultPick)}" />
+              ${renderAvatarGrid({ selectedId: defaultPick, clickFn: "selectAuthAvatar" })}
+            </div>
+          ` : ""}
+
+          <div class="mt-5">
+            <label class="text-xs text-white/60">Email</label>
+            <input id="authEmail" class="wv-input mt-2" placeholder="you@email.com" />
+          </div>
+
+          <div class="mt-4">
+            <label class="text-xs text-white/60">Password</label>
+            <input id="authPass" type="password" class="wv-input mt-2" placeholder="••••••••" />
+          </div>
+
+          ${isSignup ? `
+            <div class="mt-4">
+              <label class="text-xs text-white/60">Plan label (optional)</label>
+              <input id="authPlan" class="wv-input mt-2" placeholder="SVOD Monthly / Annual / TVOD-only" />
+            </div>
+          ` : ""}
+
+          <div class="mt-6 flex gap-2 justify-end">
+            <button class="wv-btn" onclick="navTo('#/home')">Cancel</button>
+            <button class="wv-btn wv-btn-primary" onclick="${isSignup ? "doSignup()" : "doLogin()"}">
+              ${isSignup ? "Create account" : "Log in"}
+            </button>
+          </div>
+
+          <div class="mt-5 text-xs text-white/60">
+            ${isSignup
+              ? `Already have an account? <a class="underline hover:text-white" href="#/login?mode=login">Log in</a>`
+              : `New here? <a class="underline hover:text-white" href="#/login?mode=signup">Create an account</a>`
+            }
+          </div>
         </div>
-
-        ${
-          !isLogin
-            ? `
-              <div class="space-y-2">
-                <div class="text-xs text-white/60">Full Name</div>
-                <input id="signupName" class="w-full px-3 py-2 rounded bg-white/5 border border-white/10" placeholder="Your name"/>
-              </div>
-              <div class="space-y-2 mt-2">
-                <div class="text-xs text-white/60">Choose Membership Plan</div>
-                <div class="space-y-1 text-xs">
-                  <label class="flex items-center gap-2"><input type="radio" name="membershipPlan" value="svod-monthly" checked /><span>Monthly — $5.99 / month</span></label>
-                  <label class="flex items-center gap-2"><input type="radio" name="membershipPlan" value="svod-annual" /><span>Annual — $45.99 / year</span></label>
-                </div>
-              </div>
-            `
-            : ""
-        }
-
-        <div class="space-y-2">
-          <div class="text-xs text-white/60">Email</div>
-          <input id="loginEmail" class="w-full px-3 py-2 rounded bg-white/5 border border-white/10" placeholder="you@email.com"/>
-        </div>
-
-        <div class="space-y-2">
-          <div class="text-xs text-white/60">Password</div>
-          <input id="loginPass" type="password" class="w-full px-3 py-2 rounded bg-white/5 border border-white/10" placeholder="••••••••"/>
-        </div>
-
-        ${
-          isLogin
-            ? `<div class="text-right">
-                <button class="tv-focus text-xs text-white/60 hover:text-white" onclick="handleForgotPassword()">Forgot Password?</button>
-              </div>`
-            : `
-              <div class="space-y-2">
-                <div class="text-xs text-white/60">Confirm Password</div>
-                <input id="signupPass2" type="password" class="w-full px-3 py-2 rounded bg-white/5 border border-white/10" placeholder="••••••••"/>
-              </div>
-            `
-        }
-
-        <button class="tv-focus w-full px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90" onclick="${isLogin ? "handleSignIn()" : "handleSignUp()"}">
-          ${isLogin ? "Log In" : "Create Account"}
-        </button>
-      </div>
+      </main>
     `;
   }
 
-  // =========================================================
-  // LOGIN HANDLERS
-  // =========================================================
-  async function handleSignIn() {
-    const email = (document.getElementById("loginEmail")?.value || "").trim();
-    const pass = (document.getElementById("loginPass")?.value || "").trim();
-    if (!email || !pass) return alert("Enter email + password.");
-    await signIn(email, pass);
-  }
-
-  async function handleSignUp() {
-    const name = (document.getElementById("signupName")?.value || "").trim();
-    const email = (document.getElementById("loginEmail")?.value || "").trim();
-    const pass = (document.getElementById("loginPass")?.value || "").trim();
-    const pass2 = (document.getElementById("signupPass2")?.value || "").trim();
-
-    const planEl = document.querySelector('input[name="membershipPlan"]:checked');
-    const plan = (planEl?.value || "svod-monthly").trim();
-
-    if (!email || !pass) return alert("Enter email + password.");
-    if (pass.length < 6) return alert("Password must be at least 6 characters.");
-    if (pass !== pass2) return alert("Passwords do not match.");
-
-    const { error } = await signUp(email, pass, name, plan);
-    if (error) return;
-
-    // If email confirmation is enabled in Supabase, user might need to confirm.
-    // If you disabled confirmation, they should be logged in immediately.
-    alert("Account created. If you see a confirmation email, please confirm it, then log in.");
-    navTo("#/login?mode=login");
-  }
-
-  async function handleForgotPassword() {
-    const client = await initSupabaseIfPossible();
-    if (!client) return alert("Auth not configured.");
-    const email = prompt("Enter your email to reset password:");
-    if (!email) return;
-
-    try {
-      const { error } = await client.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + "/#/login?mode=login"
-      });
-      if (error) return alert(error.message);
-      alert("Password reset email sent (if the email exists).");
-    } catch (e) {
-      alert("Could not send reset email.");
-    }
-  }
-
-  // =========================================================
-  // CHECKOUT HELPERS (SVOD / TVOD)
-  // =========================================================
-  function startMembershipCheckout(plan = "svod-monthly") {
-    // Your checkout.html can read these params and build PayPal accordingly
-    const url = `${CONFIG.TVOD_CHECKOUT_URL_BASE || "/checkout.html"}?product=svod&plan=${encodeURIComponent(plan)}`;
-    window.location.href = url;
-  }
-
-  function startTVODCheckout(titleId) {
-    const url = `${CONFIG.TVOD_CHECKOUT_URL_BASE || "/checkout.html"}?product=tvod&titleId=${encodeURIComponent(titleId || "")}`;
-    window.location.href = url;
-  }
-
-  // =========================================================
-  // PROFILE
-  // =========================================================
   function ProfilePage() {
-    const u = state.user || state.session?.user;
-    if (!u) {
-      return `
-        <div class="p-6 max-w-xl mx-auto space-y-4">
-          <div class="text-2xl font-black">Profile</div>
-          <div class="text-white/70">You’re not logged in.</div>
-          <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90" onclick="navTo('#/login?mode=login')">Log In</button>
-        </div>
-      `;
-    }
-
+    const u = state.user;
     const info = currentMembershipInfo();
-    const isMember = isActiveSvodMember();
+    const currentAvatarId = userAvatarId(u) || "ember";
+    const avatar = u ? userAvatarUrl(u) : "";
 
     return `
-      <div class="p-6 max-w-2xl mx-auto space-y-5">
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-8 pb-28 md:pb-10">
         <div class="text-2xl font-black">Profile</div>
 
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-          <div class="text-xs text-white/60">Email</div>
-          <div class="text-lg font-semibold">${esc(u.email || "")}</div>
-
-          <div class="grid md:grid-cols-2 gap-3 pt-3 text-sm">
-            <div class="bg-white/5 border border-white/10 rounded-xl p-3">
-              <div class="text-xs text-white/60">Membership Plan</div>
-              <div class="font-semibold">${esc(info.plan || currentMembershipPlan() || "—")}</div>
+        ${u ? `
+          <div class="mt-4 border border-white/10 bg-white/5 rounded-3xl p-6 max-w-xl">
+            <div class="flex items-center gap-4">
+              <div class="wv-avatar-lg"><img src="${esc(avatar)}" alt="Avatar"/></div>
+              <div class="min-w-0">
+                <div class="text-sm text-white/60">Signed in as</div>
+                <div class="text-lg font-bold break-all">${esc(u.email || "Unknown")}</div>
+              </div>
             </div>
-            <div class="bg-white/5 border border-white/10 rounded-xl p-3">
-              <div class="text-xs text-white/60">Status</div>
-              <div class="font-semibold">${esc(info.status || (isMember ? "ACTIVE" : "INACTIVE"))}</div>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div class="text-xs text-white/60">Plan</div>
+                <div class="font-bold">${esc(info.plan || currentMembershipPlan() || "—")}</div>
+              </div>
+              <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div class="text-xs text-white/60">Status</div>
+                <div class="font-bold">${esc(info.status || (isActiveSvodMember() ? "Active" : "—"))}</div>
+              </div>
+            </div>
+
+            <div class="mt-5">
+              <div class="text-sm font-black">Avatar</div>
+              <div class="text-xs text-white/60 mt-1">Pick an avatar for your WatchVIM profile.</div>
+              <input id="profileAvatar" type="hidden" value="${esc(currentAvatarId)}" />
+              ${renderAvatarGrid({ selectedId: currentAvatarId, clickFn: "selectProfileAvatar" })}
+              <div class="mt-4 flex justify-end gap-2">
+                <button class="wv-btn" onclick="saveProfileAvatar()">Save Avatar</button>
+                <button class="wv-btn" onclick="signOut()">Log out</button>
+              </div>
+            </div>
+          </div>
+        ` : `
+          <div class="mt-4 text-white/70">You’re not logged in.</div>
+          <div class="mt-4 flex gap-2">
+            <button class="wv-btn wv-btn-primary" onclick="navTo('#/login?mode=login')">Log in</button>
+            <button class="wv-btn" onclick="navTo('#/login?mode=signup')">Become a Member</button>
+          </div>
+        `}
+      </main>
+    `;
+  }
+
+  function CheckoutPage(titleId) {
+    const tid = String(titleId || "").trim();
+    const t = tid ? state.byId.get(tid) : null;
+
+    const checkoutBase = CONFIG.TVOD_CHECKOUT_URL_BASE || "/checkout.html";
+    const src = `${checkoutBase}?titleId=${encodeURIComponent(tid)}&embed=1`;
+
+    const titleText = t?.title || "Checkout";
+    const p = t ? poster(t) : "";
+
+    return `
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-10">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-xs uppercase tracking-[0.2em] text-white/60">TVOD</div>
+            <div class="text-xl md:text-2xl font-black">Checkout</div>
+            <div class="text-sm text-white/70 line-clamp-1 mt-1">${esc(titleText)}</div>
+          </div>
+          <div class="flex gap-2">
+            ${t ? `<button class="wv-btn" onclick="navTo('#/title/${esc(t.id)}')">Back</button>` : `<button class="wv-btn" onclick="goBackToCatalog()">Back</button>`}
+          </div>
+        </div>
+
+        <div class="mt-5 grid md:grid-cols-3 gap-4">
+          <div class="md:col-span-1 border border-white/10 bg-white/5 rounded-3xl p-4">
+            <div class="text-sm font-black">Order Summary</div>
+            <div class="mt-3 flex gap-3">
+              <div class="w-20 flex-none rounded-2xl overflow-hidden border border-white/10 bg-black">
+                <div class="aspect-[2/3] bg-black">
+                  ${p ? `<img src="${esc(p)}" class="w-full h-full object-cover" />` : ""}
+                </div>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-bold line-clamp-2">${esc(titleText)}</div>
+                <div class="text-xs text-white/60 mt-1">
+                  Payment processed securely by PayPal (backend). <br/>
+                  You stay on WatchVIM for checkout.
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 text-xs text-white/60">
+              If you want a fully custom card form with **no PayPal buttons**, we’ll switch to PayPal Hosted Fields / Advanced Card Payments (requires server order APIs).
             </div>
           </div>
 
-          ${info.expiresAt ? `<div class="pt-2 text-xs text-white/60">Expires: ${esc(info.expiresAt)}</div>` : ""}
+          <div class="md:col-span-2 border border-white/10 bg-white/5 rounded-3xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+              <div class="font-black text-sm">VIM Media Checkout</div>
+              <div class="text-xs text-white/60">Powered by PayPal</div>
+            </div>
+            <div class="p-3">
+              <iframe
+                src="${esc(src)}"
+                title="Checkout"
+                style="width:100%;height:820px;border:0;border-radius:18px;background:#0a0a0a;"
+              ></iframe>
+            </div>
+          </div>
         </div>
+      </main>
+    `;
+  }
 
-        <div class="flex flex-wrap gap-2">
-          ${isMember ? "" : `
-            <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90" onclick="startMembershipCheckout('svod-monthly')">
-              Subscribe (Monthly $5.99)
-            </button>
-            <button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20" onclick="startMembershipCheckout('svod-annual')">
-              Subscribe (Annual $45.99)
-            </button>
-          `}
-          <button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20" onclick="signOut(); navTo('#/home')">Log out</button>
-        </div>
-      </div>
+  function notFound(msg) {
+    return `
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-10 pb-28 md:pb-10">
+        <div class="text-2xl font-black">Not found</div>
+        <div class="mt-3 text-white/70">${esc(msg || "Page not found.")}</div>
+        <div class="mt-6"><button class="wv-btn" onclick="navTo('#/home')">Go Home</button></div>
+      </main>
     `;
   }
 
   // =========================================================
-  // LIVE (LOOP CHANNEL)
+  // LIVE LOOP CHANNEL (PlutoTV-style Guide under player + Now Playing)
+  // (FIX: remove duplicate Up Next rail list; keep only the Guide under player)
+  // (UPDATE: force content to resume autoplay after pre-roll finishes)
   // =========================================================
-  function pickLiveChannelBlock() {
+  function ensureLoopState() {
+    if (!state.loop || typeof state.loop !== "object") state.loop = {};
+    if (!Array.isArray(state.loop.queue)) state.loop.queue = [];
+    if (!Number.isFinite(Number(state.loop.index))) state.loop.index = 0;
+
+    if (!("channel" in state.loop)) state.loop.channel = null;
+    if (!("adTimer" in state.loop)) state.loop.adTimer = null;
+    if (!("rotateTimer" in state.loop)) state.loop.rotateTimer = null;
+    if (!("progressTimer" in state.loop)) state.loop.progressTimer = null;
+    if (!("playingAd" in state.loop)) state.loop.playingAd = false;
+  }
+
+  function getLoopChannelObject() {
     const c = state.catalog || {};
     return (
-      c.loopChannel ||
-      c.liveChannel ||
-      c.channels?.live ||
-      c.channels?.LIVE ||
-      c.live ||
-      c.LIVE ||
+      c.loopChannel || c.liveChannel || c.channel ||
+      c.loop_channel || c.live_channel ||
+      c.home?.loopChannel || c.home?.liveChannel || c.home?.channel ||
+      c.home?.loop_channel || c.home?.live_channel ||
       null
     );
   }
 
-  function buildLiveAdsSettings() {
-    const ch = pickLiveChannelBlock() || {};
-    const adv = ch.advertising || ch.ads || state.catalog?.advertising || state.catalog?.ads || {};
+  function normalizeLoopQueueItem(it) {
+    if (!it) return null;
 
-    // Vast tag priority: channel -> catalog -> config
-    const vastTag = pickFirstString(
-      adv.vastTag,
-      adv.prerollTag,
-      adv.preRollVastTag,
-      adv.preRollTag,
-      ch.vastTag,
-      ch.prerollTag,
-      ch.preRollVastTag,
-      CONFIG.VAST_TAG
+    // CMS rotation items commonly use:
+    //   id: "loopItem_xxx" (slot id)
+    //   refId: "title_xxx" (actual catalog title id)
+    const slotId = String(it.id || it.slotId || it.loopItemId || "");
+
+    const refId =
+      it.titleId || it.title_id ||
+      it.refId || it.ref_id ||            // ✅ IMPORTANT
+      it.contentId || it.content_id ||
+      it.slug || it.key || null;
+
+    // Prefer refId/titleId. Only fall back to it.id if it doesn't look like a loop slot id.
+    let titleId = refId ? String(refId) : null;
+    if (!titleId && slotId && !/^loopitem_/i.test(slotId)) titleId = slotId;
+
+    const fromCatalog = titleId ? state.byId.get(String(titleId)) : null;
+
+    // Resolve playbackId (supports titleId-only items by pulling from catalog)
+    const playbackId = pickFirstString(
+      it.playbackId, it.playback_id, it.muxPlaybackId, it.mux_playback_id,
+      it.contentPlaybackId, it.content_playback_id,
+      fromCatalog?.contentPlaybackId,
+      fromCatalog?.playbackId,
+      fromCatalog?.muxPlaybackId,
+      fromCatalog?.stream?.playbackId,
+      fromCatalog?.streams?.[0]?.playbackId
     );
 
-    // frequency range support (7-12)
-    const min =
-      numOrNull(adv.adFrequencyMinsMin) ??
-      numOrNull(adv.midRollEveryMinsMin) ??
-      numOrNull(ch.adFrequencyMinsMin) ??
-      numOrNull(ch.midRollEveryMinsMin) ??
-      null;
+    const url = normalizeMediaUrl(pickFirstString(
+      it.url, it.src, it.hlsUrl, it.hls_url, it.mp4Url, it.mp4_url,
+      fromCatalog?.url, fromCatalog?.src
+    ));
 
-    const max =
-      numOrNull(adv.adFrequencyMinsMax) ??
-      numOrNull(adv.midRollEveryMinsMax) ??
-      numOrNull(ch.adFrequencyMinsMax) ??
-      numOrNull(ch.midRollEveryMinsMax) ??
-      null;
+    const label = pickFirstString(it.label, it.title, fromCatalog?.title) || "Program";
 
-    // single value fallback
-    const single =
-      numOrNull(adv.adFrequencyMins) ??
-      numOrNull(adv.midRollEveryMins) ??
-      numOrNull(ch.adFrequencyMins) ??
-      numOrNull(ch.midRollEveryMins) ??
-      null;
+    const durationSec =
+      numOrNull(it.durationSec ?? it.duration_sec) ??
+      (numOrNull(fromCatalog?.runtimeMins) ? Number(fromCatalog.runtimeMins) * 60 : null);
 
     return {
-      vastTag,
-      minMins: min,
-      maxMins: max,
-      fallbackMins: single || CONFIG.LIVE_AD_FREQUENCY_MINS_FALLBACK || 10
+      label,
+      titleId: titleId || (fromCatalog?.id ? String(fromCatalog.id) : null),
+      playbackId: playbackId || "",
+      url: url || "",
+      streamType: String(it.streamType || it.stream_type || (it.isLive ? "live" : "on-demand") || "on-demand"),
+      durationSec
     };
-  }
-
-  function randomBetween(min, max) {
-    const a = Number(min), b = Number(max);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-    const lo = Math.min(a, b);
-    const hi = Math.max(a, b);
-    return lo + Math.random() * (hi - lo);
-  }
-
-  // Override LIVE ads to support random range + preroll
-  function setupLiveAds({ containerEl, vastTag, frequencyMins, frequencyMinsMin, frequencyMinsMax, doPreroll = true }) {
-    if (!containerEl || !vastTag) return;
-
-    const v = () => findVideoInContainer(containerEl);
-
-    const getMin = Number(frequencyMinsMin || 0);
-    const getMax = Number(frequencyMinsMax || 0);
-    const fixed = Number(frequencyMins || 0);
-
-    const nextDelayMins = () => {
-      if (getMin > 0 && getMax > 0) return randomBetween(getMin, getMax) || CONFIG.LIVE_AD_FREQUENCY_MINS_FALLBACK;
-      if (fixed > 0) return fixed;
-      return CONFIG.LIVE_AD_FREQUENCY_MINS_FALLBACK || 10;
-    };
-
-    let nextAt = Date.now() + nextDelayMins() * 60 * 1000;
-
-    const ensureStartPlayback = async () => {
-      const video = v();
-      if (!video) return;
-      try { await video.play(); } catch (_) {}
-    };
-
-    const fireAd = () => {
-      const video = v();
-      if (!video) return;
-
-      runVastAd(vastTag, containerEl, {
-        onBeforeAd: () => { try { video.pause(); } catch (_) {} },
-        onComplete: () => {
-          try { video.play().catch(() => {}); } catch (_) {}
-          nextAt = Date.now() + nextDelayMins() * 60 * 1000;
-        }
-      });
-    };
-
-    // Pre-roll once
-    if (doPreroll) {
-      setTimeout(() => {
-        const video = v();
-        if (!video) return;
-        fireAd();
-      }, 350);
-    }
-
-    // Repeating mid-roll timer
-    const intervalId = setInterval(() => {
-      const video = v();
-      if (!video) return;
-      if (document.hidden) return;
-      if (video.paused) return;
-      if (!video.currentTime || video.currentTime < 10) return;
-
-      if (Date.now() >= nextAt) {
-        logAds(`LIVE mid-roll firing (next window reached)`);
-        fireAd();
-      }
-    }, 1000);
-
-    // cleanup
-    window.addEventListener("hashchange", () => clearInterval(intervalId), { once: true });
-    const video0 = v();
-    if (video0) video0.addEventListener("ended", () => clearInterval(intervalId), { once: true });
-
-    // Make sure playback starts (autoplay can be blocked on some devices)
-    ensureStartPlayback();
-  }
-
-  function getLoopQueueFromCatalog() {
-    const c = state.catalog || {};
-    const ch = pickLiveChannelBlock() || {};
-
-    const raw =
-      ch.queue ||
-      ch.items ||
-      ch.titles ||
-      ch.playlist ||
-      c.loopQueue ||
-      c.liveQueue ||
-      [];
-
-    const resolveItem = (it) => {
-      if (!it) return null;
-
-      // id ref
-      if (typeof it === "string") {
-        const t = state.byId.get(it);
-        if (!t) return null;
-        return { ref: t, ...t };
-      }
-
-      const id =
-        it.id || it.refId || it.titleId || it.contentId || it?.ref?.id || it?.ref?.refId || null;
-
-      const t = id ? (state.byId.get(String(id)) || it) : it;
-
-      return { ref: t, ...t };
-    };
-
-    let items = Array.isArray(raw) ? raw.map(resolveItem).filter(Boolean) : [];
-
-    // fallback: any title tagged live / channel
-    if (!items.length) {
-      items = state.titles
-        .filter((t) => t && (t.isLive === true || (t.tags || []).some((x) => /live/i.test(String(x)))))
-        .map((t) => ({ ref: t, ...t }));
-    }
-
-    // must have playable asset
-    items = items
-      .map((t) => {
-        const playbackId =
-          t.livePlaybackId ||
-          t.playbackId ||
-          t.contentPlaybackId ||
-          t.muxPlaybackId ||
-          null;
-
-        const directUrl =
-          firstUrl(t.streamUrl, t.videoUrl, t.src, t.url) || null;
-
-        return {
-          ...t,
-          __playbackId: playbackId,
-          __directUrl: directUrl
-        };
-      })
-      .filter((t) => t.__playbackId || t.__directUrl);
-
-    return items;
-  }
-
-  function shuffleInPlace(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
   }
 
   function initLoopQueue() {
-    const q = getLoopQueueFromCatalog();
-    const ch = pickLiveChannelBlock() || {};
-    const shouldShuffle = ch.shuffle !== false; // default true
+    ensureLoopState();
 
-    state.loop.queue = shouldShuffle ? shuffleInPlace(q.slice()) : q.slice();
-    state.loop.index = 0;
+    const ch = getLoopChannelObject();
+    state.loop.channel = ch || null;
+
+    let queue = [];
+    if (Array.isArray(ch)) queue = ch;
+    else if (Array.isArray(ch?.rotationItems)) queue = ch.rotationItems; // ✅ supports CMS rotationItems
+    else if (Array.isArray(ch?.queue)) queue = ch.queue;
+    else if (Array.isArray(ch?.items)) queue = ch.items;
+
+    const norm = (queue || [])
+      .map(normalizeLoopQueueItem)
+      .filter(Boolean)
+      .filter((x) => x.playbackId || x.url);
+
+    state.loop.queue = norm;
+
+    if (state.loop.index >= norm.length) state.loop.index = 0;
+    if (state.loop.index < 0) state.loop.index = 0;
+
+    console.log("[WatchVIM LIVE] initLoopQueue:", {
+      hasChannel: !!ch,
+      rawLen: (queue && queue.length) || 0,
+      normalizedLen: norm.length,
+      sample: norm[0] || null
+    });
+  }
+
+  function cleanupLoopTimers() {
+    ensureLoopState();
+    try { if (state.loop.adTimer) clearInterval(state.loop.adTimer); } catch (_) {}
+    try { if (state.loop.rotateTimer) clearTimeout(state.loop.rotateTimer); } catch (_) {}
+    try { if (state.loop.progressTimer) clearInterval(state.loop.progressTimer); } catch (_) {}
+    state.loop.adTimer = null;
+    state.loop.rotateTimer = null;
+    state.loop.progressTimer = null;
     state.loop.playingAd = false;
   }
 
-  function currentLoopItem() {
+  // ---- NEW: make sure content resumes playback after ads (best-effort) ----
+  function pauseLoopContentPlayback(containerEl) {
+    try {
+      const v = findVideoInContainer(containerEl);
+      if (v && !v.paused) v.pause();
+    } catch (_) {}
+  }
+
+  async function resumeLoopContentPlayback(containerEl, opts = {}) {
+    const tries = Number.isFinite(opts.tries) ? opts.tries : 10;
+    const delayMs = Number.isFinite(opts.delayMs) ? opts.delayMs : 200;
+
+    const v = findVideoInContainer(containerEl);
+    if (!v) return false;
+
+    // Remember mute state so we can restore it.
+    const wasMuted = !!v.muted;
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    for (let i = 0; i < tries; i++) {
+      try {
+        // First attempt: play normally
+        const p = v.play();
+        if (p && typeof p.then === "function") await p;
+        if (!v.paused) return true;
+      } catch (_) {
+        // Autoplay policy fallback: try muted play (still better than a stuck player)
+        try {
+          v.muted = true;
+          const p2 = v.play();
+          if (p2 && typeof p2.then === "function") await p2;
+
+          // If it starts, try restoring mute state shortly after.
+          if (!v.paused) {
+            setTimeout(() => {
+              try { v.muted = wasMuted; } catch (_) {}
+            }, 250);
+            return true;
+          }
+        } catch (_) {}
+      }
+      await sleep(delayMs);
+    }
+
+    // Last attempt: restore mute state
+    try { v.muted = wasMuted; } catch (_) {}
+    return !v.paused;
+  }
+
+  async function setupLoopAds(containerEl) {
+    ensureLoopState();
+    cleanupLoopTimers();
+
+    const ch = state.loop.channel || getLoopChannelObject() || {};
+    const freq =
+      numOrNull(ch.adFrequencyMins) ??
+      numOrNull(ch.adEveryMins) ??
+      CONFIG.LIVE_AD_FREQUENCY_MINS_FALLBACK;
+
+    // continue inside setupLoopAds(containerEl) right after:
+    //   const base = { monetization:{avod:true}, avod:true,
+
+      advertising: {
+        preRollVastTag: pickFirstString(
+          ch.preRollVastTag, ch.preRollTag, ch.prerollTag, ch.vastTag, ch.vast,
+          ch.ads?.preRollVastTag, ch.ads?.preRollTag, ch.ads?.vastTag,
+          CONFIG.VAST_TAG
+        ),
+        midRollVastTag: pickFirstString(
+          ch.midRollVastTag, ch.midRollTag, ch.midrollTag,
+          ch.ads?.midRollVastTag, ch.ads?.midRollTag,
+          CONFIG.VAST_TAG
+        ),
+        midRollEveryMins: numOrNull(ch.midRollEveryMins) ?? numOrNull(ch.midrollEveryMins) ?? freq
+      }
+    };
+
+    // Live “break” tag to run on cadence (prefer mid, then pre, then global)
+    const liveBreakTag = pickFirstString(
+      ch.midRollVastTag, ch.midRollTag, ch.midrollTag,
+      ch.preRollVastTag, ch.preRollTag, ch.prerollTag,
+      ch.vastTag, ch.vast,
+      CONFIG.VAST_TAG
+    );
+
+    const adConfig = buildAdConfig(base, { forceAvod: true }) || (liveBreakTag ? { preTag: liveBreakTag, midTag: liveBreakTag, midEveryMins: freq } : null);
+
+    // repeating LIVE breaks (no manual next)
+    if (liveBreakTag && freq >= 1) {
+      state.loop.adTimer = setInterval(async () => {
+        if (location.hash && !location.hash.startsWith("#/loop")) return;
+        if (state.loop.playingAd) return;
+
+        state.loop.playingAd = true;
+        try {
+          pauseLoopContentPlayback(containerEl);
+
+          await new Promise((resolve) => {
+            runVastAd(liveBreakTag, containerEl, {
+              onBeforeAd: () => {},
+              onComplete: async () => {
+                try { await resumeLoopContentPlayback(containerEl, { tries: 12, delayMs: 220 }); } catch (_) {}
+                resolve(true);
+              }
+            }).catch(() => resolve(false));
+
+            setTimeout(() => resolve(false), 25000);
+          });
+        } finally {
+          state.loop.playingAd = false;
+        }
+      }, freq * 60 * 1000);
+    }
+
+    return { adConfig, liveBreakTag, freq };
+  }
+
+  // =========================================================
+  // LIVE UI helpers (Now Playing + Guide)
+  // =========================================================
+  function fmtTime(ts) {
+    try {
+      return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function ensureLoopNowTimes(durationSecFallback = 1800) {
+    ensureLoopState();
+    if (!state.loop.nowStartTs || !state.loop.nowEndTs) {
+      const now = Date.now();
+      const dur = Number(durationSecFallback || 0) || 1800;
+      state.loop.nowStartTs = now;
+      state.loop.nowEndTs = now + dur * 1000;
+    }
+  }
+
+  function computeGuide(queue, startIndex, count = 16) {
+    const q = Array.isArray(queue) ? queue : [];
+    if (!q.length) return [];
+    const idx0 = Math.max(0, Math.min(startIndex, q.length - 1));
+
+    const now = Date.now();
+    const cur = q[idx0];
+    const curDur = Number(cur.durationSec || 0) || 1800;
+
+    // For schedule: treat current as starting “now”
+    let t = now;
+    const out = [];
+    for (let i = 0; i < Math.min(count, q.length); i++) {
+      const idx = (idx0 + i) % q.length;
+      const it = q[idx];
+      const dur = Number(it.durationSec || 0) || (i === 0 ? curDur : 1800);
+      const start = t;
+      const end = t + dur * 1000;
+      out.push({ idx, it, start, end, isNow: i === 0 });
+      t = end;
+    }
+    return out;
+  }
+
+  function renderLiveNowAndGuide() {
+    ensureLoopState();
+    const shell = document.getElementById("livePlayerShell");
+    const nowCard = document.getElementById("liveNowCard");
+    const guideEl = document.getElementById("liveGuideList");
+    const pbar = document.getElementById("liveProgressBar");
+    if (!nowCard || !guideEl) return;
+
     const q = state.loop.queue || [];
-    if (!q.length) return null;
-    const i = Math.max(0, Math.min(state.loop.index || 0, q.length - 1));
-    return q[i] || null;
+    if (!q.length) {
+      nowCard.innerHTML = `<div class="text-white/70 text-sm">No LIVE programs configured.</div>`;
+      guideEl.innerHTML = `<div class="text-white/60 text-sm p-3">Ask admin to publish a Loop Channel queue in CMS.</div>`;
+      if (pbar) pbar.style.width = "0%";
+      return;
+    }
+
+    const cur = q[state.loop.index] || q[0];
+    const title = cur?.titleId ? state.byId.get(String(cur.titleId)) : null;
+
+    const img = title ? poster(title) : "";
+    const start = state.loop.nowStartTs || Date.now();
+    const end = state.loop.nowEndTs || (Date.now() + (Number(cur.durationSec || 1800) * 1000));
+
+    const type = title?.type || "films";
+    const detailsBtn = title?.id
+      ? `<button class="wv-btn wv-btn-primary w-full" onclick="openDetails('${esc(title.id)}','${esc(type)}')">View Details</button>`
+      : "";
+
+    nowCard.innerHTML = `
+      <div class="wv-rail-card p-4">
+        <div class="text-[10px] uppercase tracking-[0.2em] text-white/60">Now Playing</div>
+
+        <div class="mt-3 flex gap-3">
+          <div class="w-20 flex-none rounded-2xl overflow-hidden border border-white/10 bg-black">
+            <div class="aspect-[2/3] bg-black">
+              ${img ? `<img src="${esc(img)}" class="w-full h-full object-cover" />` : ""}
+            </div>
+          </div>
+
+          <div class="min-w-0">
+            <div class="text-sm font-black line-clamp-2">${esc(cur.label || title?.title || "Program")}</div>
+            <div class="text-xs text-white/60 mt-1">${esc(fmtTime(start))} – ${esc(fmtTime(end))}</div>
+            <div class="text-xs text-white/70 mt-2 line-clamp-2">${esc(title?.synopsis || title?.description || "")}</div>
+          </div>
+        </div>
+
+        <div class="mt-4">${detailsBtn}</div>
+      </div>
+    `;
+
+    const guide = computeGuide(q, state.loop.index, 18);
+    guideEl.innerHTML = guide.map((g) => {
+      const t = g.it?.titleId ? state.byId.get(String(g.it.titleId)) : null;
+      const img2 = t ? poster(t) : "";
+      const isNow = g.isNow;
+
+      return `
+        <div class="flex items-center gap-3 p-3 rounded-2xl border ${isNow ? "border-white/25 bg-white/10" : "border-white/10 bg-white/5"}">
+          <div class="w-14 h-10 rounded-xl overflow-hidden border border-white/10 bg-black flex-none">
+            ${img2 ? `<img src="${esc(img2)}" class="w-full h-full object-cover" />` : ""}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-[11px] text-white/60">${esc(fmtTime(g.start))} – ${esc(fmtTime(g.end))}</div>
+            <div class="text-sm font-bold line-clamp-1">${esc(g.it.label || t?.title || "Program")}</div>
+          </div>
+          ${isNow ? `<div class="text-[10px] px-2 py-1 rounded-full bg-[color:var(--watch-accent,#e50914)] text-white font-bold">LIVE</div>` : ""}
+        </div>
+      `;
+    }).join("");
+  }
+
+  function startLiveProgressLoop() {
+    ensureLoopState();
+    try { if (state.loop.progressTimer) clearInterval(state.loop.progressTimer); } catch (_) {}
+    state.loop.progressTimer = setInterval(() => {
+      const pbar = document.getElementById("liveProgressBar");
+      if (!pbar) return;
+
+      const now = Date.now();
+      const start = state.loop.nowStartTs || now;
+      const end = state.loop.nowEndTs || (now + 1);
+
+      const pct = Math.max(0, Math.min(1, (now - start) / Math.max(1, (end - start))));
+      pbar.style.width = `${Math.round(pct * 100)}%`;
+    }, 500);
+  }
+
+  // =========================================================
+  // LIVE playback loop (no manual Next)
+  // =========================================================
+  async function playLoopIndex(idx) {
+    ensureLoopState();
+    const q = state.loop.queue || [];
+    if (!q.length) return;
+
+    state.loop.index = ((idx % q.length) + q.length) % q.length;
+
+    const cur = q[state.loop.index];
+    const shell = document.getElementById("livePlayerShell");
+    const wrapId = "livePlayerWrap";
+    if (!shell) return;
+
+    // Reset times for schedule/progress
+    const dur = Number(cur.durationSec || 0) || 1800;
+    state.loop.nowStartTs = Date.now();
+    state.loop.nowEndTs = state.loop.nowStartTs + dur * 1000;
+
+    // Mount player (autoplay off if we have a preroll tag to respect “VAST FIRST”)
+    const ch = state.loop.channel || getLoopChannelObject() || {};
+    const livePrerollTag = pickFirstString(
+      ch.preRollVastTag, ch.preRollTag, ch.prerollTag, ch.vastTag, ch.vast,
+      CONFIG.VAST_TAG
+    );
+    const expectAds = !!livePrerollTag;
+
+    mountPlayer({
+      playbackId: cur.playbackId || "",
+      directUrl: cur.url || "",
+      streamType: cur.streamType || "on-demand",
+      wrapId,
+      autoplay: !expectAds
+    });
+
+    // Wire ended → advance
+    const v = findVideoInContainer(shell);
+    if (v) {
+      const onEnded = () => {
+        try { v.removeEventListener("ended", onEnded); } catch (_) {}
+        advanceLoop();
+      };
+      try { v.addEventListener("ended", onEnded); } catch (_) {}
+    }
+
+    // Time-based rotation fallback (for “live” sources or non-ended streams)
+    try { if (state.loop.rotateTimer) clearTimeout(state.loop.rotateTimer); } catch (_) {}
+    state.loop.rotateTimer = setTimeout(() => advanceLoop(), Math.max(15_000, dur * 1000));
+
+    // Ads cadence + optional global pod (VAST FIRST)
+    const { adConfig } = (await setupLoopAds(shell)) || {};
+    await playWithAdsIfNeeded({ containerEl: shell, isAvod: false, isLive: true, adConfig });
+
+    // Best-effort ensure it’s playing after preroll
+    try { await resumeLoopContentPlayback(shell, { tries: 12, delayMs: 220 }); } catch (_) {}
+
+    renderLiveNowAndGuide();
+    startLiveProgressLoop();
   }
 
   function advanceLoop() {
+    ensureLoopState();
     const q = state.loop.queue || [];
     if (!q.length) return;
-    state.loop.index = (state.loop.index + 1) % q.length;
-    render();
+    playLoopIndex(state.loop.index + 1);
   }
 
   function LoopPage() {
-    const item = currentLoopItem();
-    if (!item) {
-      return `
-        <div class="p-6 max-w-3xl mx-auto space-y-3">
-          <div class="text-2xl font-black">LIVE</div>
-          <div class="text-white/70">No LIVE items found in your catalog/channel.</div>
-          <div class="text-xs text-white/60">Tip: publish a loopChannel queue in your CMS (ids or items with playbackId).</div>
-        </div>
-      `;
-    }
+    ensureLoopState();
+    const hasQueue = (state.loop.queue || []).length > 0;
 
     return `
-      <section class="p-4 md:p-8 space-y-4">
-        <div class="flex items-center justify-between">
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-10">
+        <div class="flex items-center justify-between gap-3">
           <div>
-            <div class="text-xs uppercase tracking-[0.25em] text-watchGold/80">LIVE</div>
-            <div class="text-xl md:text-2xl font-black">${esc(item.title || item.name || "Now Playing")}</div>
+            <div class="text-xs uppercase tracking-[0.2em] text-white/60">LIVE</div>
+            <div class="text-xl md:text-2xl font-black">WatchVIM LIVE</div>
+            <div class="text-sm text-white/60 mt-1">Always-on channel • Pluto-style guide below</div>
+          </div>
+          <div class="flex gap-2">
+            <button class="wv-btn" onclick="goBackToCatalog()">Back</button>
           </div>
         </div>
 
-        <div class="relative rounded-2xl overflow-hidden border border-white/10 bg-black">
-          <div id="playerWrap" class="relative aspect-video w-full bg-black"></div>
-        </div>
+        <div class="mt-5 wv-live-rail">
+          <div id="livePlayerShell" class="wv-player-wrap">
+            <div id="livePlayerWrap" class="wv-player-inner"></div>
+          </div>
 
-        <div class="text-xs text-white/60">
-          LIVE plays continuously (no manual next). Ads should run pre-roll + repeating mid-roll on AVOD.
+          <div class="mt-4 wv-progress-track">
+            <div id="liveProgressBar" class="wv-progress-bar"></div>
+          </div>
+
+          <div class="mt-5 grid md:grid-cols-3 gap-4">
+            <div id="liveNowCard" class="md:col-span-1"></div>
+
+            <div class="md:col-span-2">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-black">Guide</div>
+                <div class="text-xs text-white/60">Schedule updates as the channel plays</div>
+              </div>
+              <div id="liveGuideList" class="wv-guide-scroll space-y-2 ${hasQueue ? "" : "p-3 border border-white/10 bg-white/5 rounded-2xl"}">
+                ${hasQueue ? "" : `<div class="text-white/70 text-sm">No LIVE queue configured.</div>`}
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
+      </main>
     `;
   }
 
   // =========================================================
-  // TV FOCUS (D-PAD)
+  // WATCH PAGES (title + episode)
   // =========================================================
-  function tvFocusableElements() {
-    return Array.from(document.querySelectorAll(".tv-focus"))
-      .filter((el) => !el.disabled && el.offsetParent !== null);
-  }
+  function WatchPage(id, kind = "content") {
+    const t = state.byId.get(String(id));
+    if (!t) return notFound("Title not found");
 
-  function centerOf(el) {
-    const r = el.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, r };
-  }
+    const isTrailer = String(kind || "").toLowerCase() === "trailer";
+    const titleText = t.title || "Untitled";
+    const p = poster(t);
 
-  function tvFindNearest(fromEl, dir) {
-    const all = tvFocusableElements();
-    if (!fromEl || !all.length) return null;
-
-    const from = centerOf(fromEl);
-    let best = null;
-    let bestScore = Infinity;
-
-    for (const el of all) {
-      if (el === fromEl) continue;
-      const to = centerOf(el);
-
-      const dx = to.x - from.x;
-      const dy = to.y - from.y;
-
-      // directional filter
-      if (dir === "left" && dx >= -5) continue;
-      if (dir === "right" && dx <= 5) continue;
-      if (dir === "up" && dy >= -5) continue;
-      if (dir === "down" && dy <= 5) continue;
-
-      // score: favor closer + more aligned
-      const dist = Math.hypot(dx, dy);
-      const align = dir === "left" || dir === "right" ? Math.abs(dy) : Math.abs(dx);
-      const score = dist + align * 1.5;
-
-      if (score < bestScore) {
-        bestScore = score;
-        best = el;
-      }
-    }
-    return best;
-  }
-
-  function tvFocusReset() {
-    if (!isTV()) return;
-    const all = tvFocusableElements();
-    if (!all.length) return;
-    const active = document.activeElement;
-    if (!active || !active.classList?.contains("tv-focus")) {
-      all[0].focus();
-      all[0].classList?.add("focus-ring");
-    }
-  }
-
-  function tvFocusMove(dir) {
-    if (!isTV()) return;
-    const active = document.activeElement;
-    const target = tvFindNearest(active, dir);
-    if (target) {
-      document.querySelectorAll(".tv-focus").forEach((x) => x.classList.remove("focus-ring"));
-      target.focus();
-      target.classList.add("focus-ring");
-      target.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }
-  }
-
-  window.addEventListener("keydown", (e) => {
-    if (!isTV()) return;
-
-    const key = e.key;
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) {
-      e.preventDefault();
-      tvFocusMove(
-        key === "ArrowLeft" ? "left" :
-        key === "ArrowRight" ? "right" :
-        key === "ArrowUp" ? "up" : "down"
-      );
-    }
-  });
-
-  // =========================================================
-  // MISC RENDER HELPERS
-  // =========================================================
-  function NotFound(msg = "Not found") {
     return `
-      <div class="p-8 max-w-2xl mx-auto space-y-3">
-        <div class="text-2xl font-black">Oops</div>
-        <div class="text-white/70">${esc(msg)}</div>
-        <button class="tv-focus px-4 py-2 rounded-lg bg-watchRed font-bold hover:opacity-90" onclick="navTo('#/home')">Go Home</button>
-      </div>
-    `;
-  }
-
-  function renderLoading() {
-    app.innerHTML = `
-      <div class="min-h-screen bg-watchBlack">
-        ${Header()}
-        <div class="p-8 max-w-5xl mx-auto">
-          <div class="animate-pulse space-y-4">
-            <div class="h-8 w-56 bg-white/10 rounded"></div>
-            <div class="h-4 w-96 bg-white/10 rounded"></div>
-            <div class="h-64 w-full bg-white/10 rounded-2xl"></div>
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-10">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-xs uppercase tracking-[0.2em] text-white/60">${esc(isTrailer ? "Trailer" : "Now Playing")}</div>
+            <div class="text-xl md:text-2xl font-black line-clamp-1">${esc(titleText)}</div>
+          </div>
+          <div class="flex gap-2">
+            <button class="wv-btn" onclick="navTo(state.playbackReturnHash || '#/title/${esc(t.id)}')">Back</button>
           </div>
         </div>
-      </div>
-    `;
-  }
 
-  function renderError(err) {
-    app.innerHTML = `
-      <div class="min-h-screen bg-watchBlack">
-        ${Header()}
-        <div class="p-8 max-w-3xl mx-auto space-y-3">
-          <div class="text-2xl font-black">Error</div>
-          <div class="text-white/70">${esc(err?.message || String(err || "Unknown error"))}</div>
-          <button class="tv-focus px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20" onclick="location.reload()">Reload</button>
+        <div class="mt-5 grid md:grid-cols-3 gap-4">
+          <div class="md:col-span-2">
+            <div id="playerShell" class="wv-player-wrap">
+              <div id="playerWrap" class="wv-player-inner"></div>
+            </div>
+          </div>
+
+          <div class="md:col-span-1 border border-white/10 bg-white/5 rounded-3xl p-4">
+            <div class="flex gap-3">
+              <div class="w-20 flex-none rounded-2xl overflow-hidden border border-white/10 bg-black">
+                <div class="aspect-[2/3] bg-black">
+                  ${p ? `<img src="${esc(p)}" class="w-full h-full object-cover" />` : ""}
+                </div>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-black line-clamp-2">${esc(titleText)}</div>
+                <div class="text-xs text-white/60 mt-1">${esc(typeLabel(t.type))}${t.releaseYear ? ` • ${esc(t.releaseYear)}` : ""}</div>
+                <div class="text-xs text-white/70 mt-2 line-clamp-4">${esc(t.synopsis || t.description || "")}</div>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button class="wv-btn wv-btn-primary" onclick="openDetails('${esc(t.id)}','${esc(t.type)}')">Details</button>
+              ${t.trailerPlaybackId ? `<button class="wv-btn" onclick="startPlayback('${esc(t.id)}','${isTrailer ? "content" : "trailer"}')">${isTrailer ? "Play Movie" : "Play Trailer"}</button>` : ""}
+            </div>
+          </div>
         </div>
-      </div>
+      </main>
+    `;
+  }
+
+  function EpisodeWatchPage(seriesId, seasonIndex, epIndex, kind = "content") {
+    const series = state.byId.get(String(seriesId));
+    const sIdx = Number(seasonIndex);
+    const eIdx = Number(epIndex);
+
+    const season = series?.seasons?.[sIdx] || null;
+    const ep = season?.episodes?.[eIdx] || null;
+
+    if (!series || !ep) return notFound("Episode not found");
+
+    const epTitle = ep.title || `Episode ${eIdx + 1}`;
+    const img = episodePoster(ep, series);
+
+    return `
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-10">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-xs uppercase tracking-[0.2em] text-white/60">Series</div>
+            <div class="text-xl md:text-2xl font-black line-clamp-1">${esc(series.title || "Series")}</div>
+            <div class="text-sm text-white/70 line-clamp-1 mt-1">S${sIdx + 1} • E${eIdx + 1} — ${esc(epTitle)}</div>
+          </div>
+          <div class="flex gap-2">
+            <button class="wv-btn" onclick="navTo(state.playbackReturnHash || '#/series/${esc(series.id)}?season=${sIdx}')">Back</button>
+          </div>
+        </div>
+
+        <div class="mt-5 grid md:grid-cols-3 gap-4">
+          <div class="md:col-span-2">
+            <div id="epPlayerShell" class="wv-player-wrap">
+              <div id="epPlayerWrap" class="wv-player-inner"></div>
+            </div>
+          </div>
+
+          <div class="md:col-span-1 border border-white/10 bg-white/5 rounded-3xl p-4">
+            <div class="flex gap-3">
+              <div class="w-24 flex-none rounded-2xl overflow-hidden border border-white/10 bg-black">
+                <div class="aspect-[16/9] bg-black">
+                  ${img ? `<img src="${esc(img)}" class="w-full h-full object-cover" />` : ""}
+                </div>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-black line-clamp-2">${esc(epTitle)}</div>
+                <div class="text-xs text-white/60 mt-1">S${sIdx + 1} • E${eIdx + 1}</div>
+                <div class="text-xs text-white/70 mt-2 line-clamp-4">${esc(ep.synopsis || ep.description || "")}</div>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button class="wv-btn wv-btn-primary" onclick="openDetails('${esc(series.id)}','series')">Series Details</button>
+            </div>
+          </div>
+        </div>
+      </main>
     `;
   }
 
   // =========================================================
-  // MAIN RENDER
+  // ACTIONS: Playback + TVOD checkout
   // =========================================================
-  async function afterRender() {
-    // keep loginView in sync with route
-    if (state.route?.name === "login") {
-      loginView = (state.route.params?.mode || "login") === "signup" ? "signup" : "login";
-    }
+  async function startTVODCheckout(titleId) {
+    const tid = String(titleId || "").trim();
+    if (!tid) return;
+    state.playbackReturnHash = location.hash || `#/title/${encodeURIComponent(tid)}`;
+    navTo(`#/checkout?titleId=${encodeURIComponent(tid)}`);
+  }
 
-    // HERO
-    if (state.route?.name === "home") {
-      const featured = sortFeatured(featuredItems());
-      const heroItems = (featured.length ? featured : state.titles).slice(0, 6);
-      setupHeroCarousel(heroItems.length);
-      wireHeroHover();
-    }
+  async function startPlayback(id, kind = "content") {
+    const t = state.byId.get(String(id));
+    if (!t) return;
 
-    // SEARCH
-    if (state.route?.name === "search") {
-      wireSearch();
-    }
+    // Gate only for main content (trailers are always allowed)
+    if (String(kind).toLowerCase() !== "trailer") {
+      const access = checkAccessForPlayback(t);
+      if (access.allowed === false) {
+        const actions = [{ label: "Not now", primary: false, onClick: () => {} }];
 
-    // WATCH TITLE
-    if (state.route?.name === "watch") {
-      const id = state.route.params?.id;
-      const kind = state.route.params?.kind || "content";
-      const t = state.byId.get(id);
-      if (!t) return;
-
-      const isTrailer = kind === "trailer";
-      const gate = isTrailer ? { allowed: true, adMode: "none" } : checkAccessForPlayback(t);
-      if (!gate.allowed) return;
-
-      const pb = muxIdFor(t, kind) || t.contentPlaybackId || t.playbackId;
-      mountPlayer({ playbackId: pb, wrapId: "playerWrap" });
-
-      const wrap = document.getElementById("playerWrap");
-      addTapToPlayFallback(wrap);
-
-      if (!isTrailer) {
-        const adConfig = adConfigForTitle(t, gate.adMode);
-        await playWithAdsIfNeeded({
-          containerEl: wrap,
-          isAvod: gate.adMode === "avod",
-          isLive: false,
-          adConfig
-        });
-      }
-
-      // mark last watched when possible
-      try {
-        const v = findVideoInContainer(wrap);
-        if (v) {
-          v.addEventListener("timeupdate", () => {
-            const p = v.duration ? (v.currentTime / v.duration) : 0;
-            markWatched(t.id, p);
-          });
+        if (access.reason === "login") {
+          actions.unshift({ label: "Log in", primary: true, onClick: () => navTo("#/login?mode=login") });
+          actions.unshift({ label: "Create account", primary: false, onClick: () => navTo("#/login?mode=signup") });
+        } else if (access.reason === "upgrade") {
+          actions.unshift({ label: "Become a Member", primary: true, onClick: () => navTo("#/login?mode=signup") });
+        } else if (access.reason === "tvod") {
+          actions.unshift({ label: "Rent / Buy", primary: true, onClick: () => startTVODCheckout(t.id) });
         }
-      } catch (_) {}
-    }
 
-    // WATCH EPISODE
-    if (state.route?.name === "episode") {
-      const { seriesId, seasonIndex, epIndex, kind } = state.route.params || {};
-      const s = state.byId.get(seriesId);
-      const season = s?.seasons?.[Number(seasonIndex)];
-      const ep = season?.episodes?.[Number(epIndex)];
-      if (!s || !ep) return;
-
-      const isTrailer = (kind || "content") === "trailer";
-      const monet = ep.monetization || s.monetization || {};
-      const gate = isTrailer ? { allowed: true, adMode: "none" } : checkAccessForPlayback({ ...s, monetization: monet, id: s.id });
-      if (!gate.allowed) return;
-
-      const pb = (kind === "trailer" ? ep.trailerPlaybackId : ep.contentPlaybackId) || ep.playbackId;
-      mountPlayer({ playbackId: pb, wrapId: "playerWrap" });
-
-      const wrap = document.getElementById("playerWrap");
-      addTapToPlayFallback(wrap);
-
-      if (!isTrailer) {
-        const adConfig = adConfigForEpisode(s, ep, gate.adMode);
-        await playWithAdsIfNeeded({
-          containerEl: wrap,
-          isAvod: gate.adMode === "avod",
-          isLive: false,
-          adConfig
-        });
-      }
-    }
-
-    // LIVE LOOP (THIS IS WHAT WAS MISSING FOR YOUR ADS)
-    if (state.route?.name === "loop") {
-      const item = currentLoopItem();
-      const wrap = document.getElementById("playerWrap");
-      if (!item || !wrap) return;
-
-      // mount content
-      mountPlayer({
-        playbackId: item.__playbackId,
-        directUrl: item.__directUrl,
-        wrapId: "playerWrap"
-      });
-
-      addTapToPlayFallback(wrap);
-
-      // auto advance when finished
-      setTimeout(() => {
-        const v = findVideoInContainer(wrap);
-        if (!v) return;
-        v.addEventListener("ended", () => advanceLoop(), { once: true });
-      }, 250);
-
-      // GLOBAL POD (optional)
-      if (CONFIG.PLAY_GLOBAL_ADS_ON_LIVE && Array.isArray(CONFIG.GLOBAL_ADS) && CONFIG.GLOBAL_ADS.length) {
-        try { await playGlobalAdPod(CONFIG.GLOBAL_ADS); } catch (_) {}
-      }
-
-      // VAST LIVE ADS (pre + repeating)
-      const ok = await ensureImaLoaded();
-      if (!ok) return;
-
-      const liveAds = buildLiveAdsSettings();
-      if (!liveAds.vastTag) {
-        logAds("LIVE: No VAST tag found (channel/catalog/config).");
+        showPaywallModal({ title: "Access Required", message: access.message || "This content is restricted.", actions });
         return;
       }
-
-      // Treat LIVE channel as AVOD: always run ads here
-      setupLiveAds({
-        containerEl: wrap,
-        vastTag: liveAds.vastTag,
-        frequencyMins: liveAds.fallbackMins,
-        frequencyMinsMin: liveAds.minMins,
-        frequencyMinsMax: liveAds.maxMins,
-        doPreroll: true
-      });
     }
 
-    // TV focus
-    setTimeout(() => tvFocusReset(), 50);
+    state.playbackReturnHash = location.hash || `#/title/${encodeURIComponent(id)}`;
+    navTo(`#/watch/${encodeURIComponent(id)}?kind=${encodeURIComponent(kind || "content")}`);
   }
 
-  function render() {
-    state.route = parseHash();
+  function startEpisode(seriesId, seasonIndex, epIndex) {
+    const sid = String(seriesId || "");
+    if (!sid) return;
 
-    // sync active tab from route when applicable
-    if (state.route.name === "home") {
-      const tab = state.route.params?.tab;
-      if (tab && TAB_FILTERS[tab]) state.activeTab = tab;
-      else if (!state.activeTab) state.activeTab = "Home";
+    const series = state.byId.get(sid);
+    const ep = series?.seasons?.[seasonIndex]?.episodes?.[epIndex] || null;
+    const access = checkAccessForPlayback(ep || series);
+
+    if (access.allowed === false) {
+      const actions = [{ label: "Not now", primary: false, onClick: () => {} }];
+
+      if (access.reason === "login") {
+        actions.unshift({ label: "Log in", primary: true, onClick: () => navTo("#/login?mode=login") });
+        actions.unshift({ label: "Create account", primary: false, onClick: () => navTo("#/login?mode=signup") });
+      } else if (access.reason === "upgrade") {
+        actions.unshift({ label: "Become a Member", primary: true, onClick: () => navTo("#/login?mode=signup") });
+      } else if (access.reason === "tvod") {
+        actions.unshift({ label: "Rent / Buy", primary: true, onClick: () => startTVODCheckout(series?.id || sid) });
+      }
+
+      showPaywallModal({ title: "Access Required", message: access.message || "This content is restricted.", actions });
+      return;
     }
 
-    // pages
-    let body = "";
+    state.playbackReturnHash = location.hash || `#/series/${encodeURIComponent(sid)}?season=${seasonIndex}`;
+    navTo(`#/episode/${encodeURIComponent(sid)}/${encodeURIComponent(seasonIndex)}/${encodeURIComponent(epIndex)}?kind=content`);
+  }
+
+  // =========================================================
+  // RENDER + WIRES
+  // =========================================================
+  function renderLoading(msg = "Loading…") {
+    app.innerHTML = `
+      ${Header()}
+      <main class="max-w-6xl mx-auto px-4 md:px-8 py-16">
+        <div class="text-2xl font-black">${esc(msg)}</div>
+        <div class="mt-3 text-white/60 text-sm">Please wait…</div>
+      </main>
+      ${MobileTabBar()}
+      ${SiteFooter()}
+    `;
+  }
+
+  async function wireWatchPlayback() {
+    const { id, kind } = state.route.params || {};
+    const t = state.byId.get(String(id));
+    if (!t) return;
+
+    const isTrailer = String(kind || "").toLowerCase() === "trailer";
+    const pb = isTrailer
+      ? pickFirstString(t.trailerPlaybackId, t.trailer_playback_id, t.trailer?.playbackId)
+      : pickFirstString(
+          t.contentPlaybackId, t.content_playback_id,
+          t.playbackId, t.playback_id, t.muxPlaybackId, t.mux_playback_id,
+          t.stream?.playbackId, t.streams?.[0]?.playbackId
+        );
+
+    const directUrl = normalizeMediaUrl(pickFirstString(t.url, t.src, t.hlsUrl, t.mp4Url));
+    const shell = document.getElementById("playerShell");
+    if (!shell) return;
+
+    const access = !isTrailer ? checkAccessForPlayback(t) : { allowed: true, adMode: "none" };
+    const adConfig = !isTrailer ? buildAdConfig(t) : null;
+    const expectPreroll = !!(adConfig?.preTag);
+
+    mountPlayer({
+      playbackId: pb || "",
+      directUrl: pb ? "" : directUrl,
+      streamType: "on-demand",
+      wrapId: "playerWrap",
+      autoplay: !expectPreroll
+    });
+
+    await playWithAdsIfNeeded({
+      containerEl: shell,
+      isAvod: access.adMode === "avod",
+      isLive: false,
+      adConfig
+    });
+  }
+
+  async function wireEpisodePlayback() {
+    const { seriesId, seasonIndex, epIndex } = state.route.params || {};
+    const series = state.byId.get(String(seriesId));
+    const sIdx = Number(seasonIndex);
+    const eIdx = Number(epIndex);
+    const ep = series?.seasons?.[sIdx]?.episodes?.[eIdx] || null;
+    if (!series || !ep) return;
+
+    const pb = pickFirstString(
+      ep.playbackId, ep.playback_id,
+      ep.contentPlaybackId, ep.content_playback_id,
+      ep.muxPlaybackId, ep.mux_playback_id,
+      ep.stream?.playbackId, ep.streams?.[0]?.playbackId
+    );
+
+    const directUrl = normalizeMediaUrl(pickFirstString(ep.url, ep.src, ep.hlsUrl, ep.mp4Url));
+    const shell = document.getElementById("epPlayerShell");
+    if (!shell) return;
+
+    const access = checkAccessForPlayback(ep || series);
+    const adConfig = buildAdConfig(ep || series) || null;
+    const expectPreroll = !!(adConfig?.preTag);
+
+    mountPlayer({
+      playbackId: pb || "",
+      directUrl: pb ? "" : directUrl,
+      streamType: "on-demand",
+      wrapId: "epPlayerWrap",
+      autoplay: !expectPreroll
+    });
+
+    await playWithAdsIfNeeded({
+      containerEl: shell,
+      isAvod: access.adMode === "avod",
+      isLive: false,
+      adConfig
+    });
+  }
+
+  async function wireLoopPlayback() {
+    ensureLoopState();
+    initLoopQueue();
+    renderLiveNowAndGuide();
+    startLiveProgressLoop();
+    if ((state.loop.queue || []).length) await playLoopIndex(state.loop.index || 0);
+  }
+
+  function wirePostRenderCommon() {
+    wireRowScrolling();
+    if (document.querySelectorAll(".hero-slide").length) {
+      setupHeroCarousel(document.querySelectorAll(".hero-slide").length);
+      wireHeroHover();
+    }
+  }
+
+  async function render() {
+    injectGlobalStyles();
+
+    state.route = parseHash();
+
+    // cleanup LIVE timers when leaving
+    if (state.route.name !== "loop") cleanupLoopTimers();
+
+    let page = "";
+
     switch (state.route.name) {
       case "landing":
-        body = LandingPage();
+        page = LandingPage();
         break;
+
       case "home":
-        body = HomePage();
+        page = HomePage();
         break;
+
       case "title":
-        body = TitlePage(state.route.params.id);
+        page = TitleDetailPage(state.route.params.id);
         break;
+
       case "series":
-        body = SeriesPage(state.route.params.id);
+        page = SeriesDetailPage(state.route.params.id, state.route.params.season);
         break;
+
+      case "search":
+        page = SearchPage();
+        break;
+
+      case "login":
+        page = LoginPage(state.route.params.mode || "login");
+        break;
+
+      case "profile":
+        page = ProfilePage();
+        break;
+
+      case "checkout":
+        page = CheckoutPage(state.route.params.titleId);
+        break;
+
       case "watch":
-        body = WatchPage(state.route.params.id, state.route.params.kind || "content");
+        page = WatchPage(state.route.params.id, state.route.params.kind);
         break;
+
       case "episode":
-        body = EpisodeWatchPage(
+        page = EpisodeWatchPage(
           state.route.params.seriesId,
-          state.route.params.seasonIndex,
-          state.route.params.epIndex,
-          state.route.params.kind || "content"
+          Number(state.route.params.seasonIndex),
+          Number(state.route.params.epIndex),
+          state.route.params.kind
         );
         break;
+
       case "loop":
         state.activeTab = "LIVE";
-        body = LoopPage();
+        page = LoopPage();
         break;
-      case "search":
-        body = SearchPage();
-        break;
-      case "login":
-        body = LoginPage();
-        break;
-      case "profile":
-        body = ProfilePage();
-        break;
+
       default:
-        body = NotFound("Page not found");
+        page = HomePage();
+        break;
     }
 
     app.innerHTML = `
-      <div class="min-h-screen bg-watchBlack">
-        ${Header()}
-        <main class="${isTV() ? "" : "pb-20"}">
-          ${body}
-        </main>
-        ${MobileTabBar()}
-      </div>
+      ${Header()}
+      ${page}
+      ${MobileTabBar()}
+      ${SiteFooter()}
     `;
 
-    // expose focus ring styling on click too
-    document.querySelectorAll(".tv-focus").forEach((el) => {
-      el.addEventListener("focus", () => el.classList.add("focus-ring"));
-      el.addEventListener("blur", () => el.classList.remove("focus-ring"));
-    });
+    wirePostRenderCommon();
 
-    // run post-render hooks
-    afterRender().catch((e) => console.warn("[WatchVIM] afterRender error", e));
+    if (state.route.name === "search") wireSearch();
+
+    if (state.route.name === "loop") {
+      await ensureMuxPlayerLoaded();
+      await wireLoopPlayback();
+    }
+
+    if (state.route.name === "watch") {
+      await ensureMuxPlayerLoaded();
+      await wireWatchPlayback();
+    }
+
+    if (state.route.name === "episode") {
+      await ensureMuxPlayerLoaded();
+      await wireEpisodePlayback();
+    }
   }
 
   // =========================================================
-  // EXPOSE GLOBALS FOR INLINE onclick=""
+  // AUTH UI HANDLERS
   // =========================================================
-  window.navTo = navTo;
-  window.setTab = setTab;
-  window.signOut = signOut;
-  window.signIn = signIn;
-  window.signUp = signUp;
+  function selectAuthAvatar(id) {
+    const safe = (id && AVATAR_PRESETS.includes(id)) ? id : "ember";
+    const input = document.getElementById("authAvatar");
+    if (input) input.value = safe;
 
-  window.handleSignIn = handleSignIn;
-  window.handleSignUp = handleSignUp;
-  window.handleForgotPassword = handleForgotPassword;
+    document.querySelectorAll(".wv-avatar-grid button").forEach((b) => {
+      const v = b.getAttribute("data-avatar");
+      if (v === safe) b.classList.add("wv-selected");
+      else b.classList.remove("wv-selected");
+    });
+  }
 
-  window.startMembershipCheckout = startMembershipCheckout;
-  window.startTVODCheckout = startTVODCheckout;
+  function selectProfileAvatar(id) {
+    const safe = (id && AVATAR_PRESETS.includes(id)) ? id : "ember";
+    const input = document.getElementById("profileAvatar");
+    if (input) input.value = safe;
+
+    document.querySelectorAll(".wv-avatar-grid button").forEach((b) => {
+      const v = b.getAttribute("data-avatar");
+      if (v === safe) b.classList.add("wv-selected");
+      else b.classList.remove("wv-selected");
+    });
+  }
+
+  async function saveProfileAvatar() {
+    const id = document.getElementById("profileAvatar")?.value || "ember";
+    await updateProfileAvatar(id);
+  }
+
+  async function doLogin() {
+    const email = document.getElementById("authEmail")?.value || "";
+    const pass = document.getElementById("authPass")?.value || "";
+    if (!email || !pass) return alert("Please enter email + password.");
+    await signIn(email.trim(), pass);
+  }
+
+  async function doSignup() {
+    const name = document.getElementById("authName")?.value || "";
+    const email = document.getElementById("authEmail")?.value || "";
+    const pass = document.getElementById("authPass")?.value || "";
+    const plan = document.getElementById("authPlan")?.value || "tvod-only";
+    const avatarId = document.getElementById("authAvatar")?.value || "ember";
+
+    if (!email || !pass) return alert("Please enter email + password.");
+    const { error } = await signUp(email.trim(), pass, name.trim(), plan.trim(), avatarId);
+    if (!error) {
+      alert("Account created! If email confirmation is enabled, check your inbox.");
+      navTo("#/home");
+    }
+  }
+
+  // =========================================================
+  // EXPOSE GLOBALS (for onclick handlers)
+  // =========================================================
+  Object.assign(window, {
+    navTo,
+    setTab,
+    openDetails,
+    goBackToCatalog,
+    startPlayback,
+    startEpisode,
+    startTVODCheckout,
+
+    // Auth
+    doLogin,
+    doSignup,
+    signOut,
+
+    // Avatar UI
+    selectAuthAvatar,
+    selectProfileAvatar,
+    saveProfileAvatar
+  });
 
   // =========================================================
   // BOOT
   // =========================================================
   (async function boot() {
-    try {
-      injectGlobalStyles();
-      await loadConfigJSON();
-      await initSupabaseIfPossible();
-      await loadData();
+    injectGlobalStyles();
+    await loadConfigJSON();
+    injectGlobalStyles();
 
-      // If no hash, show landing. Otherwise render route.
-      if (!window.location.hash) {
-        state.route = { name: "landing", params: {} };
-        render();
-      } else {
-        render();
-      }
+    try {
+      await ensureMuxPlayerLoaded();
+      await loadData();
+      await initSupabaseIfPossible();
+
+      // default to landing when no hash
+      if (!location.hash) state.route = { name: "landing", params: {} };
+
+      await render();
     } catch (e) {
       console.error(e);
-      renderError(e);
+      app.innerHTML = `
+        ${Header()}
+        <main class="max-w-6xl mx-auto px-4 md:px-8 py-16">
+          <div class="text-2xl font-black">Something went wrong</div>
+          <div class="mt-3 text-white/70 text-sm">${esc(e?.message || String(e))}</div>
+          <div class="mt-6">
+            <button class="wv-btn wv-btn-primary" onclick="location.reload()">Reload</button>
+          </div>
+        </main>
+        ${MobileTabBar()}
+        ${SiteFooter()}
+      `;
     }
   })();
 })();

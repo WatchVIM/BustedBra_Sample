@@ -1821,43 +1821,44 @@
   // =========================================================
   // PLAYER MOUNT
   // =========================================================
-  function mountPlayer({ playbackId, directUrl, streamType = "on-demand", wrapId = "playerWrap" }) {
-    const wrap = document.getElementById(wrapId);
-    if (!wrap) return;
+  function mountPlayer({ playbackId, directUrl, streamType = "on-demand", wrapId = "playerWrap", autoplay = true }) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
 
-    ensureRelativePosition(wrap);
+  ensureRelativePosition(wrap);
 
-    const muxId = wrapId === "playerWrap" ? "muxPlayer" : `muxPlayer_${wrapId}`;
-    const htmlId = wrapId === "playerWrap" ? "html5Player" : `html5Player_${wrapId}`;
+  const muxId = wrapId === "playerWrap" ? "muxPlayer" : `muxPlayer_${wrapId}`;
+  const htmlId = wrapId === "playerWrap" ? "html5Player" : `html5Player_${wrapId}`;
+  const autoAttr = autoplay ? "autoplay" : "";
 
-    wrap.innerHTML = playbackId
-      ? `
-        <mux-player
-          id="${muxId}"
-          stream-type="${esc(streamType)}"
-          playback-id="${esc(playbackId)}"
-          metadata-video-title="WatchVIM"
-          controls
-          autoplay
-          playsinline
-          style="width:100%;height:100%;display:block;--media-object-fit:contain;--media-object-position:center;"
-        ></mux-player>
-      `
-      : `
-        <video
-          id="${htmlId}"
-          controls
-          autoplay
-          playsinline
-          webkit-playsinline
-          style="width:100%;height:100%;display:block;object-fit:contain;background:#000;"
-        >
-          <source src="${esc(directUrl || "")}" type="video/mp4" />
-        </video>
-      `;
-  }
-
-  // =========================================================
+  wrap.innerHTML = playbackId
+    ? `
+      <mux-player
+        id="${muxId}"
+        stream-type="${esc(streamType)}"
+        playback-id="${esc(playbackId)}"
+        metadata-video-title="WatchVIM"
+        controls
+        ${autoAttr}
+        playsinline
+        style="width:100%;height:100%;display:block;--media-object-fit:contain;--media-object-position:center;"
+      ></mux-player>
+    `
+    : `
+      <video
+        id="${htmlId}"
+        controls
+        ${autoAttr}
+        playsinline
+        webkit-playsinline
+        style="width:100%;height:100%;display:block;object-fit:contain;background:#000;"
+      >
+        <source src="${esc(directUrl || "")}" type="video/mp4" />
+      </video>
+    `;
+}
+ 
+   // =========================================================
   // SHELL
   // =========================================================
   function Header() {

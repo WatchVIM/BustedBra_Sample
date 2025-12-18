@@ -3681,24 +3681,18 @@
   // EXPOSE GLOBALS (for onclick handlers)
   // =========================================================
   Object.assign(window, {
-    navTo,
-    setTab,
-    openDetails,
-    goBackToCatalog,
-    startPlayback,
-    startEpisode,
-    startTVODCheckout,
+  // Nav
+  navTo, setTab, openDetails, goBackToCatalog,
 
-    // Auth
-    doLogin,
-    doSignup,
-    signOut,
+  // Playback / checkout
+  startPlayback, startEpisode, startTVODCheckout,
 
-    // Avatar UI
-    selectAuthAvatar,
-    selectProfileAvatar,
-    saveProfileAvatar
-  });
+  // Auth
+  doLogin, doSignup, signOut,
+
+  // Avatar UI
+  selectAuthAvatar, selectProfileAvatar, saveProfileAvatar,
+});
 
   // =========================================================
   // BOOT
